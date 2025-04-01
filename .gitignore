@@ -1,0 +1,25 @@
+# Config
+configs/.env
+configs/config.local.yaml
+
+# Generated code (re-generate in CI/build)
+internal/infrastructure/persistence/postgres/db/
+internal/infrastructure/rpc/gen/
+third_party/openapi/
+
+# Build artifacts
+/healthapp-server
+
+# OS generated files
+.DS_Store
+*.swp
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work

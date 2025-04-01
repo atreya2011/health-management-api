@@ -1,0 +1,13 @@
+version: v2
+modules:
+  - path: api
+    name: buf.build/atreya2011/health-management-api
+    lint:
+      use:
+        - DEFAULT
+    breaking:
+      use:
+        - FILE
+  - path: api/proto
+deps:
+  - buf.build/googleapis/googleapis

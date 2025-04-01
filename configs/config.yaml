@@ -1,0 +1,8 @@
+server:
+  port: "8081"
+
+database:
+  url: "postgres://healthapp_user:verysecretpassword@localhost:5432/healthapp_db?sslmode=disable"
+
+jwt:
+  secretkey: "your-secret-key-change-me-in-production"

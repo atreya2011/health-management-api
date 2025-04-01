@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package healthapp.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto"; // For optional fields
+import "healthapp/v1/common.proto";
+
+option go_package = "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1;healthappv1";
+
+message DiaryEntry {
+  string                      id      = 1;  // UUID string
+  string                      user_id = 2;  // UUID string
+  google.protobuf.StringValue title   = 3;  // Optional title
+  string                      content = 4;  // The main diary text
+  string                      entry_date =
+      5;  // Date the diary entry pertains to in "YYYY-MM-DD" format
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+service DiaryService {
+  // Create a new diary entry.
+  // Requires authentication.
+  rpc CreateDiaryEntry(CreateDiaryEntryRequest)
+      returns (CreateDiaryEntryResponse);
+
+  // Update an existing diary entry.
+  // Requires authentication.
+  rpc UpdateDiaryEntry(UpdateDiaryEntryRequest)
+      returns (UpdateDiaryEntryResponse);
+
+  // List diary entries for the authenticated user, paginated.
+  // Requires authentication.
+  rpc ListDiaryEntries(ListDiaryEntriesRequest)
+      returns (ListDiaryEntriesResponse);
+
+  // Get a specific diary entry by ID.
+  // Requires authentication.
+  rpc GetDiaryEntry(GetDiaryEntryRequest) returns (GetDiaryEntryResponse);
+
+  // Delete a diary entry.
+  // Requires authentication.
+  rpc DeleteDiaryEntry(DeleteDiaryEntryRequest)
+      returns (DeleteDiaryEntryResponse);
+}
+
+message CreateDiaryEntryRequest {
+  google.protobuf.StringValue title      = 1;  // Optional title
+  string                      content    = 2;  // Required
+  string                      entry_date = 3;  // "YYYY-MM-DD" format
+}
+
+message CreateDiaryEntryResponse {
+  DiaryEntry diary_entry = 1;
+}
+
+message UpdateDiaryEntryRequest {
+  string                      id      = 1;  // UUID of the diary entry to update
+  google.protobuf.StringValue title   = 2;  // Optional title
+  string                      content = 3;  // Required
+}
+
+message UpdateDiaryEntryResponse {
+  DiaryEntry diary_entry = 1;
+}
+
+message ListDiaryEntriesRequest {
+  PageRequest pagination = 1;
+}
+
+message ListDiaryEntriesResponse {
+  repeated DiaryEntry diary_entries = 1;
+  PageResponse        pagination    = 2;
+}
+
+message GetDiaryEntryRequest {
+  string id = 1;  // UUID of the diary entry to retrieve
+}
+
+message GetDiaryEntryResponse {
+  DiaryEntry diary_entry = 1;
+}
+
+message DeleteDiaryEntryRequest {
+  string id = 1;  // UUID of the diary entry to delete
+}
+
+message DeleteDiaryEntryResponse {
+  bool success = 1;
+}
