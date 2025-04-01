@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: healthapp_postgres_dev
+    ports:
+      - "5432:5432" # Expose standard port
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: healthapp_db
+      POSTGRES_USER: healthapp_user
+      POSTGRES_PASSWORD: verysecretpassword # Use .env or secrets management in real scenario
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthapp_user -d healthapp_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data: # Persist data locally between runs

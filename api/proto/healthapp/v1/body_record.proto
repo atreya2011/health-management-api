@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package healthapp.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto"; // For optional fields
+import "healthapp/v1/common.proto";
+
+option go_package = "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1;healthappv1";
+
+message BodyRecord {
+  string                      id      = 1;  // UUID string
+  string                      user_id = 2;  // UUID string
+  string                      date = 3;  // Date string in "YYYY-MM-DD" format
+  google.protobuf.DoubleValue weight_kg =
+      4;  // Optional: Use wrappers for nullability
+  google.protobuf.DoubleValue body_fat_percentage = 5;  // Optional
+  google.protobuf.Timestamp   created_at          = 6;
+  google.protobuf.Timestamp   updated_at          = 7;
+}
+
+service BodyRecordService {
+  // Create or update a body record for a specific date.
+  // Requires authentication.
+  rpc CreateBodyRecord(CreateBodyRecordRequest)
+      returns (CreateBodyRecordResponse);
+
+  // List body records for the authenticated user, paginated.
+  // Requires authentication.
+  rpc ListBodyRecords(ListBodyRecordsRequest) returns (ListBodyRecordsResponse);
+
+  // List body records for a specific date range.
+  // Requires authentication.
+  rpc GetBodyRecordsByDateRange(GetBodyRecordsByDateRangeRequest)
+      returns (GetBodyRecordsByDateRangeResponse);
+}
+
+message CreateBodyRecordRequest {
+  string                      date                = 1;  // "YYYY-MM-DD"
+  google.protobuf.DoubleValue weight_kg           = 2;
+  google.protobuf.DoubleValue body_fat_percentage = 3;
+}
+
+message CreateBodyRecordResponse {
+  BodyRecord body_record = 1;
+}
+
+message ListBodyRecordsRequest {
+  PageRequest pagination = 1;
+}
+
+message ListBodyRecordsResponse {
+  repeated BodyRecord body_records = 1;
+  PageResponse        pagination   = 2;
+}
+
+message GetBodyRecordsByDateRangeRequest {
+  string start_date = 1;  // "YYYY-MM-DD" inclusive
+  string end_date   = 2;  // "YYYY-MM-DD" inclusive
+}
+
+message GetBodyRecordsByDateRangeResponse {
+  repeated BodyRecord body_records = 1;
+}

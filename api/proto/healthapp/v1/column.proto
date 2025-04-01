@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package healthapp.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto"; // For optional fields
+import "healthapp/v1/common.proto";
+
+option go_package = "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1;healthappv1";
+
+message Column {
+  string                      id       = 1;  // UUID string
+  string                      title    = 2;
+  string                      content  = 3;
+  google.protobuf.StringValue category = 4;  // Optional category
+  repeated string             tags     = 5;  // Array of tags
+  google.protobuf.Timestamp   published_at =
+      6;  // Nullable, only show if not null and in the past
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+service ColumnService {
+  // List published columns, paginated.
+  // Public endpoint, no authentication required.
+  rpc ListPublishedColumns(ListPublishedColumnsRequest)
+      returns (ListPublishedColumnsResponse);
+
+  // Get a specific column by ID.
+  // Public endpoint, no authentication required.
+  rpc GetColumn(GetColumnRequest) returns (GetColumnResponse);
+
+  // List columns by category.
+  // Public endpoint, no authentication required.
+  rpc ListColumnsByCategory(ListColumnsByCategoryRequest)
+      returns (ListColumnsByCategoryResponse);
+
+  // List columns by tag.
+  // Public endpoint, no authentication required.
+  rpc ListColumnsByTag(ListColumnsByTagRequest)
+      returns (ListColumnsByTagResponse);
+}
+
+message ListPublishedColumnsRequest {
+  PageRequest pagination = 1;
+}
+
+message ListPublishedColumnsResponse {
+  repeated Column columns    = 1;
+  PageResponse    pagination = 2;
+}
+
+message GetColumnRequest {
+  string id = 1;  // UUID of the column to retrieve
+}
+
+message GetColumnResponse {
+  Column column = 1;
+}
+
+message ListColumnsByCategoryRequest {
+  string      category   = 1;
+  PageRequest pagination = 2;
+}
+
+message ListColumnsByCategoryResponse {
+  repeated Column columns    = 1;
+  PageResponse    pagination = 2;
+}
+
+message ListColumnsByTagRequest {
+  string      tag        = 1;
+  PageRequest pagination = 2;
+}
+
+message ListColumnsByTagResponse {
+  repeated Column columns    = 1;
+  PageResponse    pagination = 2;
+}
