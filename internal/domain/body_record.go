@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,27 @@ type BodyRecord struct {
 
 // Validate performs validation on the body record
 func (br *BodyRecord) Validate() error {
-	// Add validation rules here, e.g., range checks for weight/percentage
+	// Validate weight (if provided)
+	if br.WeightKg != nil {
+		weight := *br.WeightKg
+		if weight <= 0 {
+			return errors.New("weight must be positive")
+		}
+		if weight > 500 {
+			return errors.New("weight exceeds maximum allowed value")
+		}
+	}
+
+	// Validate body fat percentage (if provided)
+	if br.BodyFatPercentage != nil {
+		bodyFat := *br.BodyFatPercentage
+		if bodyFat < 0 {
+			return errors.New("body fat percentage cannot be negative")
+		}
+		if bodyFat > 100 {
+			return errors.New("body fat percentage cannot exceed 100%")
+		}
+	}
+
 	return nil
 }

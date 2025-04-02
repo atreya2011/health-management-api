@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 
 	// App imports
 	"github.com/atreya2011/health-management-api/internal/application"
+	"github.com/atreya2011/health-management-api/internal/domain"
 	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
 	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
 	applog "github.com/atreya2011/health-management-api/internal/infrastructure/log"
@@ -23,6 +25,63 @@ import (
 	"github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1/healthappv1connect"
 	"github.com/atreya2011/health-management-api/internal/infrastructure/rpc/handlers"
 )
+
+// seedMockData adds mock data to the database for testing purposes
+func seedMockData(ctx context.Context, userRepo domain.UserRepository, bodyRecordRepo domain.BodyRecordRepository, logger *slog.Logger) {
+	// Create a test user if it doesn't exist
+	testUser, err := userRepo.FindBySubjectID(ctx, "test-subject-id")
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			// Create a new test user
+			newUser := &domain.User{
+				SubjectID: "test-subject-id",
+			}
+			if err := userRepo.Create(ctx, newUser); err != nil {
+				logger.Error("Failed to create test user", "error", err)
+				return
+			}
+			logger.Info("Created test user", "subjectID", "test-subject-id")
+			
+			// Get the created user
+			testUser, err = userRepo.FindBySubjectID(ctx, "test-subject-id")
+			if err != nil {
+				logger.Error("Failed to retrieve newly created test user", "error", err)
+				return
+			}
+		} else {
+			logger.Error("Failed to check for test user", "error", err)
+			return
+		}
+	}
+	
+	logger.Info("Using test user for mock data", "userID", testUser.ID)
+	
+	// Create mock body records for the past 30 days
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	
+	for i := 0; i < 30; i++ {
+		date := now.AddDate(0, 0, -i)
+		
+		// Generate some realistic but varying data
+		weight := 70.0 + float64(i%5)
+		bodyFat := 15.0 + float64(i%3)
+		
+		record := &domain.BodyRecord{
+			UserID:            testUser.ID,
+			Date:              date,
+			WeightKg:          &weight,
+			BodyFatPercentage: &bodyFat,
+		}
+		
+		_, err := bodyRecordRepo.Save(ctx, record)
+		if err != nil {
+			logger.Warn("Failed to create mock body record", "date", date, "error", err)
+			continue
+		}
+	}
+	
+	logger.Info("Mock data seeded successfully")
+}
 
 func main() {
 	// Initialize logger
@@ -49,6 +108,10 @@ func main() {
 	userRepo := postgres.NewPgUserRepository(dbPool)
 	bodyRecordRepo := postgres.NewPgBodyRecordRepository(dbPool)
 	// Initialize other repositories as needed
+	
+	// Seed mock data
+	logger.Info("Seeding mock data...")
+	seedMockData(context.Background(), userRepo, bodyRecordRepo, logger)
 
 	// Initialize application services
 	bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger)
