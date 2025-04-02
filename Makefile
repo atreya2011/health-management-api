@@ -40,15 +40,20 @@ test: ## Run Go tests
 
 build: ## Build the server binary
 	@echo "Building server..."
-	go build -o healthapp-server ./cmd/server
+	mkdir -p bin
+	go build -o bin/server ./cmd/server
 
 run: build ## Build and run the server
 	@echo "Running server..."
-	./healthapp-server
+	./bin/server serve
+
+seed: build ## Seed the database with mock data
+	@echo "Seeding database with mock data..."
+	./bin/server seed
 
 clean: ## Clean generated files and build artifacts
 	@echo "Cleaning generated files and build artifacts..."
-	rm -f healthapp-server
+	rm -rf bin
 	rm -rf internal/infrastructure/persistence/postgres/db/*
 	rm -rf internal/infrastructure/rpc/gen/*
 	rm -rf third_party/openapi/*

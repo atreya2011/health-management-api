@@ -92,16 +92,50 @@ The project follows a clean architecture approach with DDD principles:
 7. Build and run the server:
 
    ```bash
+   make build
+   ./bin/server serve
+   ```
+
+   Or use the make command:
+
+   ```bash
    make run
    ```
 
 ## Development
 
-### Common Commands
+### CLI Commands
+
+The application provides a command-line interface with the following commands:
+
+- `serve`: Start the API server
+
+  ```bash
+  ./bin/server serve [flags]
+  ```
+
+  Flags:
+  - `-p, --port string`: Port to run the server on (overrides config)
+  - `-v, --verbose`: Enable verbose output
+  - `--config-path string`: Path to config directory (default "./configs")
+
+- `seed`: Seed the database with mock data
+
+  ```bash
+  ./bin/server seed [flags]
+  ```
+
+  Flags:
+  - `-d, --days int`: Number of days to generate mock data for (default 30)
+  - `-v, --verbose`: Enable verbose output
+  - `--config-path string`: Path to config directory (default "./configs")
+
+### Common Make Commands
 
 - `make help`: Display available commands
 - `make build`: Build the server binary
 - `make run`: Build and run the server
+- `make seed`: Seed the database with mock data
 - `make test`: Run tests
 - `make proto`: Generate Connect-RPC code from proto files
 - `make sqlc`: Generate Go code from SQL queries
@@ -117,4 +151,4 @@ The project follows a clean architecture approach with DDD principles:
 5. Create application service in `internal/application/`
 6. Define API in Protocol Buffers (`api/proto/`)
 7. Implement Connect-RPC handler in `internal/infrastructure/rpc/handlers/`
-8. Register the handler in `cmd/server/main.go`
+8. Register the handler in `cmd/server/cmd/serve.go`
