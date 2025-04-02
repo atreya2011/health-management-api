@@ -136,8 +136,7 @@ The application provides a command-line interface with the following commands:
 - `make build`: Build the server binary
 - `make run`: Build and run the server
 - `make seed`: Seed the database with mock data
-- `make test`: Run tests
-- `make test-integration`: Run integration tests with real database
+- `make test`: Run tests with real database
 - `make proto`: Generate Connect-RPC code from proto files
 - `make sqlc`: Generate Go code from SQL queries
 - `make migrate-up`: Apply database migrations
@@ -156,28 +155,10 @@ The application provides a command-line interface with the following commands:
 
 ## Testing
 
-The project uses a combination of unit tests and integration tests:
-
-### Unit Tests
-
-Unit tests use mocks to test components in isolation. These tests are fast and don't require external dependencies.
+The project uses tests that run against a real PostgreSQL database running in a Docker container. These tests provide realistic testing of database interactions and are particularly useful for testing repositories, services, and handlers.
 
 ```bash
 make test
-```
-
-### Integration Tests
-
-Integration tests use a real PostgreSQL database running in a Docker container. These tests provide more realistic testing of database interactions and are particularly useful for testing repositories and services.
-
-```bash
-make test-integration
-```
-
-or manually:
-
-```bash
-RUN_INTEGRATION_TESTS=true go test ./...
 ```
 
 ### Test Utilities
