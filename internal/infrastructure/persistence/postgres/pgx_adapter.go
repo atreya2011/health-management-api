@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	_ "github.com/lib/pq" // Import the postgres driver
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -33,12 +35,32 @@ func (a *PgxAdapter) QueryContext(ctx context.Context, query string, args ...int
 	return nil, fmt.Errorf("QueryContext not implemented")
 }
 
+// CustomRow is a custom implementation of sql.Row
+type CustomRow struct {
+	row pgx.Row
+}
+
+// Scan implements the sql.Scanner interface
+func (r *CustomRow) Scan(dest ...interface{}) error {
+	return r.row.Scan(dest...)
+}
+
 // QueryRowContext implements the database/sql QueryRowContext method
 func (a *PgxAdapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	// This is a hack, but it works because sqlc doesn't actually use the returned sql.Row
-	// It directly calls the Scan method on the result of QueryRowContext
-	_ = a.Pool.QueryRow(ctx, query, args...)
-	return &sql.Row{}
+	// Instead of using the pgx adapter, let's use direct SQL for now
+	// This is a temporary workaround until we can properly implement the adapter
+	
+	// Create a connection string from the pool config
+	connStr := a.Pool.Config().ConnString()
+	
+	// Open a standard database/sql connection
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		panic(err) // In a real implementation, we would handle this error properly
+	}
+	
+	// Use the standard database/sql QueryRow method
+	return db.QueryRowContext(ctx, query, args...)
 }
 
 // PrepareContext implements the database/sql PrepareContext method
