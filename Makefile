@@ -34,9 +34,9 @@ db-stop: ## Stop PostgreSQL container
 	@echo "Stopping PostgreSQL container..."
 	docker compose down
 
-test: ## Run Go tests
+test: ## Run Go tests with colored output
 	@echo "Running tests..."
-	go test -v -race ./...
+	richgo test -v -race ./...
 
 build: ## Build the server binary
 	@echo "Building server..."
@@ -68,6 +68,7 @@ setup-tools:
 	go install github.com/bufbuild/buf/cmd/buf@latest
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	go install github.com/kyoh86/richgo@latest
 
 generate-all: proto sqlc ## Generate all code (protobuf, connect, sqlc)
 
