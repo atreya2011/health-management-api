@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/jackc/pgx/v5"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -69,6 +70,7 @@ func runServer() {
 	}
 
 	// Initialize database connection
+	logger.Info("Connecting to database...", "url", cfg.Database.URL)
 	dbPool, err := postgres.NewDBPool(&cfg.Database)
 	if err != nil {
 		logger.Error("Failed to connect to database", "error", err)
@@ -76,6 +78,23 @@ func runServer() {
 	}
 	defer dbPool.Close()
 	logger.Info("Database connection pool established")
+	
+	// Check if the database schema is correct
+	schemaCtx, schemaCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer schemaCancel()
+	
+	var columnName string
+	err = dbPool.QueryRow(schemaCtx, "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'subject_id'").Scan(&columnName)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			logger.Error("Database schema is incorrect. Make sure migrations have been applied.", "error", "subject_id column not found in users table")
+		} else {
+			logger.Error("Failed to check database schema", "error", err)
+		}
+		logger.Info("Run 'make migrate-up' to apply migrations")
+		os.Exit(1)
+	}
+	logger.Info("Database schema verified", "column_name", columnName)
 
 	// Initialize repositories
 	userRepo := postgres.NewPgUserRepository(dbPool)

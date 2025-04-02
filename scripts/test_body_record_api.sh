@@ -9,7 +9,7 @@ BASE_URL="http://localhost:8081"
 # Set the JWT token (replace with a valid token)
 # For testing, you can use a token with subject claim "test-subject-id"
 # which matches the mock data user
-JWT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXN1YmplY3QtaWQiLCJuYW1lIjoiVGVzdCBVc2VyIiwiaWF0IjoxNTE2MjM5MDIyfQ.fhc3wykrAnRpcKApKhXiahxaOe8PSHatad31NuIZ0Zg"
+JWT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDM2NjU1NTksImlhdCI6MTc0MzU3OTE1OSwibmFtZSI6IlRlc3QgVXNlciIsInN1YiI6InRlc3Qtc3ViamVjdC1pZCJ9.Fc3Kx3pcNi-livTP2mILLgH5zHaqczGOC0uCKsQRSs8"
 
 echo "Testing BodyRecord API..."
 echo "=========================="
@@ -21,7 +21,7 @@ curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Connect-Protocol-Version: 1" \
-  -d '{"date":"2025-04-01","weight_kg":{"value":75.5},"body_fat_percentage":{"value":16.2}}' \
+  -d '{"date":"2025-04-01","weight_kg":75.5,"body_fat_percentage":16.2}' \
   "$BASE_URL/healthapp.v1.BodyRecordService/CreateBodyRecord" | jq .
 echo ""
 
