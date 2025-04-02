@@ -130,3 +130,221 @@ func TestBodyRecordService_CreateOrUpdateBodyRecord_Error(t *testing.T) {
 		t.Errorf("Expected nil result, got %v", result)
 	}
 }
+
+func TestBodyRecordService_GetBodyRecordsForUser(t *testing.T) {
+	// Create a logger that writes to nowhere
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	
+	// Create test data
+	userID := uuid.New()
+	page := 1
+	pageSize := 10
+	offset := (page - 1) * pageSize
+	
+	// Create mock records
+	mockRecords := []*domain.BodyRecord{
+		{
+			ID:        uuid.New(),
+			UserID:    userID,
+			Date:      time.Now().UTC().Truncate(24 * time.Hour),
+			WeightKg:  floatPtr(75.5),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		{
+			ID:                uuid.New(),
+			UserID:            userID,
+			Date:              time.Now().UTC().Truncate(24 * time.Hour).Add(-24 * time.Hour),
+			WeightKg:          floatPtr(76.0),
+			BodyFatPercentage: floatPtr(15.5),
+			CreatedAt:         time.Now(),
+			UpdatedAt:         time.Now(),
+		},
+	}
+	
+	// Create a mock repository
+	mockRepo := &mockBodyRecordRepository{
+		findByUserFunc: func(ctx context.Context, uid uuid.UUID, limit, off int) ([]*domain.BodyRecord, error) {
+			// Verify input
+			if uid != userID {
+				t.Errorf("Expected UserID %v, got %v", userID, uid)
+			}
+			if limit != pageSize {
+				t.Errorf("Expected limit %v, got %v", pageSize, limit)
+			}
+			if off != offset {
+				t.Errorf("Expected offset %v, got %v", offset, off)
+			}
+			
+			return mockRecords, nil
+		},
+		countByUserFunc: func(ctx context.Context, uid uuid.UUID) (int64, error) {
+			// Verify input
+			if uid != userID {
+				t.Errorf("Expected UserID %v, got %v", userID, uid)
+			}
+			
+			return int64(len(mockRecords)), nil
+		},
+	}
+	
+	// Create the service with the mock repository
+	service := NewBodyRecordService(mockRepo, logger)
+	
+	// Call the method being tested
+	records, total, err := service.GetBodyRecordsForUser(context.Background(), userID, page, pageSize)
+	
+	// Check for errors
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	// Verify the results
+	if len(records) != len(mockRecords) {
+		t.Errorf("Expected %d records, got %d", len(mockRecords), len(records))
+	}
+	
+	if total != int64(len(mockRecords)) {
+		t.Errorf("Expected total %d, got %d", len(mockRecords), total)
+	}
+}
+
+func TestBodyRecordService_GetBodyRecordsForUser_Error(t *testing.T) {
+	// Create a logger that writes to nowhere
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	
+	// Create test data
+	userID := uuid.New()
+	page := 1
+	pageSize := 10
+	
+	// Create a mock repository that returns an error
+	mockRepo := &mockBodyRecordRepository{
+		findByUserFunc: func(ctx context.Context, uid uuid.UUID, limit, offset int) ([]*domain.BodyRecord, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	
+	// Create the service with the mock repository
+	service := NewBodyRecordService(mockRepo, logger)
+	
+	// Call the method being tested
+	records, total, err := service.GetBodyRecordsForUser(context.Background(), userID, page, pageSize)
+	
+	// Check for errors
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+	
+	// Verify the results
+	if records != nil {
+		t.Errorf("Expected nil records, got %v", records)
+	}
+	
+	if total != 0 {
+		t.Errorf("Expected total 0, got %d", total)
+	}
+}
+
+func TestBodyRecordService_GetBodyRecordsForUserDateRange(t *testing.T) {
+	// Create a logger that writes to nowhere
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	
+	// Create test data
+	userID := uuid.New()
+	startDate := time.Now().UTC().Truncate(24 * time.Hour).Add(-7 * 24 * time.Hour)
+	endDate := time.Now().UTC().Truncate(24 * time.Hour)
+	
+	// Create mock records
+	mockRecords := []*domain.BodyRecord{
+		{
+			ID:        uuid.New(),
+			UserID:    userID,
+			Date:      endDate,
+			WeightKg:  floatPtr(75.5),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		{
+			ID:                uuid.New(),
+			UserID:            userID,
+			Date:              startDate,
+			WeightKg:          floatPtr(76.0),
+			BodyFatPercentage: floatPtr(15.5),
+			CreatedAt:         time.Now(),
+			UpdatedAt:         time.Now(),
+		},
+	}
+	
+	// Create a mock repository
+	mockRepo := &mockBodyRecordRepository{
+		findByUserAndDateRangeFunc: func(ctx context.Context, uid uuid.UUID, start, end time.Time) ([]*domain.BodyRecord, error) {
+			// Verify input
+			if uid != userID {
+				t.Errorf("Expected UserID %v, got %v", userID, uid)
+			}
+			if !start.Equal(startDate) {
+				t.Errorf("Expected startDate %v, got %v", startDate, start)
+			}
+			if !end.Equal(endDate) {
+				t.Errorf("Expected endDate %v, got %v", endDate, end)
+			}
+			
+			return mockRecords, nil
+		},
+	}
+	
+	// Create the service with the mock repository
+	service := NewBodyRecordService(mockRepo, logger)
+	
+	// Call the method being tested
+	records, err := service.GetBodyRecordsForUserDateRange(context.Background(), userID, startDate, endDate)
+	
+	// Check for errors
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	// Verify the results
+	if len(records) != len(mockRecords) {
+		t.Errorf("Expected %d records, got %d", len(mockRecords), len(records))
+	}
+}
+
+func TestBodyRecordService_GetBodyRecordsForUserDateRange_Error(t *testing.T) {
+	// Create a logger that writes to nowhere
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	
+	// Create test data
+	userID := uuid.New()
+	startDate := time.Now().UTC().Truncate(24 * time.Hour).Add(-7 * 24 * time.Hour)
+	endDate := time.Now().UTC().Truncate(24 * time.Hour)
+	
+	// Create a mock repository that returns an error
+	mockRepo := &mockBodyRecordRepository{
+		findByUserAndDateRangeFunc: func(ctx context.Context, uid uuid.UUID, start, end time.Time) ([]*domain.BodyRecord, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	
+	// Create the service with the mock repository
+	service := NewBodyRecordService(mockRepo, logger)
+	
+	// Call the method being tested
+	records, err := service.GetBodyRecordsForUserDateRange(context.Background(), userID, startDate, endDate)
+	
+	// Check for errors
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+	
+	// Verify the results
+	if records != nil {
+		t.Errorf("Expected nil records, got %v", records)
+	}
+}
+
+// Helper function to create a pointer to a float64
+func floatPtr(v float64) *float64 {
+	return &v
+}
