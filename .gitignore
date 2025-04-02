@@ -2,6 +2,9 @@
 configs/.env
 configs/config.local.yaml
 
+# Binaries
+bin/server
+
 # Generated code (re-generate in CI/build)
 internal/infrastructure/persistence/postgres/db/
 internal/infrastructure/rpc/gen/
