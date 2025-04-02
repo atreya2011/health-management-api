@@ -34,13 +34,9 @@ db-stop: ## Stop PostgreSQL container
 	@echo "Stopping PostgreSQL container..."
 	docker compose down
 
-test: ## Run Go tests with colored output
+test: ## Run tests with real database
 	@echo "Running tests..."
 	richgo test -v -race ./...
-
-test-integration: ## Run integration tests with real database
-	@echo "Running integration tests..."
-	RUN_INTEGRATION_TESTS=true richgo test -v -race ./...
 
 build: ## Build the server binary
 	@echo "Building server..."

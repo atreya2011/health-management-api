@@ -52,21 +52,12 @@ if err != nil {
 repo := testutil.NewBodyRecordRepository(testDB.Pool)
 ```
 
-## Integration Tests
+## Database Tests
 
-Integration tests that use a real database can be conditionally enabled by setting the `RUN_INTEGRATION_TESTS` environment variable:
-
-```go
-// Skip integration tests if not explicitly enabled
-if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
-    t.Skip("Skipping integration test. Set RUN_INTEGRATION_TESTS=true to run")
-}
-```
-
-To run integration tests:
+All tests in the project use a real database for testing:
 
 ```bash
-RUN_INTEGRATION_TESTS=true go test ./...
+make test
 ```
 
 ## Benefits Over Mocks
