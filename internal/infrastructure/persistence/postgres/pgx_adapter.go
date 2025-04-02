@@ -32,7 +32,18 @@ func (a *PgxAdapter) ExecContext(ctx context.Context, query string, args ...inte
 
 // QueryContext implements the database/sql QueryContext method
 func (a *PgxAdapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
-	return nil, fmt.Errorf("QueryContext not implemented")
+	// Create a connection string from the pool config
+	connStr := a.Pool.Config().ConnString()
+	
+	// Open a standard database/sql connection
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database connection: %w", err)
+	}
+	defer db.Close()
+	
+	// Use the standard database/sql Query method
+	return db.QueryContext(ctx, query, args...)
 }
 
 // CustomRow is a custom implementation of sql.Row
