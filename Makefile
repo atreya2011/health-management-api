@@ -1,4 +1,4 @@
-.PHONY: help proto sqlc migrate-up migrate-down db-start db-stop test build run clean
+.PHONY: help proto sqlc migrate-up migrate-down db-start db-stop test test-integration build run clean
 
 DB_URL=postgres://healthapp_user:verysecretpassword@localhost:5432/healthapp_db?sslmode=disable
 MIGRATIONS_DIR=./db/migrations
@@ -37,6 +37,10 @@ db-stop: ## Stop PostgreSQL container
 test: ## Run Go tests with colored output
 	@echo "Running tests..."
 	richgo test -v -race ./...
+
+test-integration: ## Run integration tests with real database
+	@echo "Running integration tests..."
+	RUN_INTEGRATION_TESTS=true richgo test -v -race ./...
 
 build: ## Build the server binary
 	@echo "Building server..."
