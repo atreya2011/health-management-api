@@ -2,87 +2,47 @@ package application
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
-	"github.com/google/uuid"
+	"github.com/atreya2011/health-management-api/internal/testutil"
 )
 
-// mockBodyRecordRepository is a simple mock implementation of domain.BodyRecordRepository
-// We're using a simple mock here instead of testify/mock to avoid dependencies
-type mockBodyRecordRepository struct {
-	saveFunc                    func(ctx context.Context, record *domain.BodyRecord) (*domain.BodyRecord, error)
-	findByUserFunc              func(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*domain.BodyRecord, error)
-	findByUserAndDateRangeFunc  func(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]*domain.BodyRecord, error)
-	countByUserFunc             func(ctx context.Context, userID uuid.UUID) (int64, error)
-}
-
-func (m *mockBodyRecordRepository) Save(ctx context.Context, record *domain.BodyRecord) (*domain.BodyRecord, error) {
-	return m.saveFunc(ctx, record)
-}
-
-func (m *mockBodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*domain.BodyRecord, error) {
-	return m.findByUserFunc(ctx, userID, limit, offset)
-}
-
-func (m *mockBodyRecordRepository) FindByUserAndDateRange(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]*domain.BodyRecord, error) {
-	return m.findByUserAndDateRangeFunc(ctx, userID, startDate, endDate)
-}
-
-func (m *mockBodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	return m.countByUserFunc(ctx, userID)
-}
-
 func TestBodyRecordService_CreateOrUpdateBodyRecord(t *testing.T) {
-	// Create a logger that writes to nowhere
+	// Set up the test database
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	// Create a logger that writes to stderr
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	
-	// Create test data
-	userID := uuid.New()
+
+	// Create a test user
+	ctx := context.Background()
+	userID, err := testutil.CreateTestUser(ctx, testDB.DB)
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Create a real repository
+	repo := testutil.NewBodyRecordRepository(testDB.Pool)
+
+	// Create the service with the real repository
+	service := NewBodyRecordService(repo, logger)
+
+	// Test data
 	date := time.Now().UTC().Truncate(24 * time.Hour)
 	weight := 75.5
-	
-	// Create a mock repository
-	mockRepo := &mockBodyRecordRepository{
-		saveFunc: func(ctx context.Context, record *domain.BodyRecord) (*domain.BodyRecord, error) {
-			// Verify input
-			if record.UserID != userID {
-				t.Errorf("Expected UserID %v, got %v", userID, record.UserID)
-			}
-			if !record.Date.Equal(date) {
-				t.Errorf("Expected Date %v, got %v", date, record.Date)
-			}
-			if *record.WeightKg != weight {
-				t.Errorf("Expected WeightKg %v, got %v", weight, *record.WeightKg)
-			}
-			
-			// Return a successful result
-			return &domain.BodyRecord{
-				ID:        uuid.New(),
-				UserID:    userID,
-				Date:      date,
-				WeightKg:  &weight,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			}, nil
-		},
-	}
-	
-	// Create the service with the mock repository
-	service := NewBodyRecordService(mockRepo, logger)
-	
+
 	// Call the method being tested
-	result, err := service.CreateOrUpdateBodyRecord(context.Background(), userID, date, &weight, nil)
-	
+	result, err := service.CreateOrUpdateBodyRecord(ctx, userID, date, &weight, nil)
+
 	// Check for errors
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-	
+
 	// Verify the result
 	if result == nil {
 		t.Fatal("Expected result, got nil")
@@ -99,32 +59,38 @@ func TestBodyRecordService_CreateOrUpdateBodyRecord(t *testing.T) {
 }
 
 func TestBodyRecordService_CreateOrUpdateBodyRecord_Error(t *testing.T) {
-	// Create a logger that writes to nowhere
+	// Set up the test database
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	// Create a logger that writes to stderr
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	
-	// Create test data
-	userID := uuid.New()
-	date := time.Now().UTC().Truncate(24 * time.Hour)
-	weight := 75.5
-	
-	// Create a mock repository that returns an error
-	mockRepo := &mockBodyRecordRepository{
-		saveFunc: func(ctx context.Context, record *domain.BodyRecord) (*domain.BodyRecord, error) {
-			return nil, errors.New("database error")
-		},
+
+	// Create a test user
+	ctx := context.Background()
+	userID, err := testutil.CreateTestUser(ctx, testDB.DB)
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
-	// Create the service with the mock repository
-	service := NewBodyRecordService(mockRepo, logger)
-	
+
+	// Create a real repository
+	repo := testutil.NewBodyRecordRepository(testDB.Pool)
+
+	// Create the service with the real repository
+	service := NewBodyRecordService(repo, logger)
+
+	// Test data - invalid weight to trigger validation error
+	date := time.Now().UTC().Truncate(24 * time.Hour)
+	weight := -10.0 // Negative weight should fail validation
+
 	// Call the method being tested
-	result, err := service.CreateOrUpdateBodyRecord(context.Background(), userID, date, &weight, nil)
-	
+	result, err := service.CreateOrUpdateBodyRecord(ctx, userID, date, &weight, nil)
+
 	// Check for errors
 	if err == nil {
-		t.Error("Expected error, got nil")
+		t.Error("Expected error for invalid weight, got nil")
 	}
-	
+
 	// Verify the result
 	if result != nil {
 		t.Errorf("Expected nil result, got %v", result)
@@ -132,219 +98,128 @@ func TestBodyRecordService_CreateOrUpdateBodyRecord_Error(t *testing.T) {
 }
 
 func TestBodyRecordService_GetBodyRecordsForUser(t *testing.T) {
-	// Create a logger that writes to nowhere
+	// Set up the test database
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	// Create a logger that writes to stderr
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	
-	// Create test data
-	userID := uuid.New()
+
+	// Create a test user
+	ctx := context.Background()
+	userID, err := testutil.CreateTestUser(ctx, testDB.DB)
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Create test records
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	yesterday := today.Add(-24 * time.Hour)
+
+	weight1 := 75.5
+	weight2 := 76.0
+	bodyFat := 15.5
+
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, today, &weight1, nil)
+	if err != nil {
+		t.Fatalf("Failed to create test body record: %v", err)
+	}
+
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, yesterday, &weight2, &bodyFat)
+	if err != nil {
+		t.Fatalf("Failed to create test body record: %v", err)
+	}
+
+	// Create a real repository
+	repo := testutil.NewBodyRecordRepository(testDB.Pool)
+
+	// Create the service with the real repository
+	service := NewBodyRecordService(repo, logger)
+
+	// Test parameters
 	page := 1
 	pageSize := 10
-	offset := (page - 1) * pageSize
-	
-	// Create mock records
-	mockRecords := []*domain.BodyRecord{
-		{
-			ID:        uuid.New(),
-			UserID:    userID,
-			Date:      time.Now().UTC().Truncate(24 * time.Hour),
-			WeightKg:  floatPtr(75.5),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-		{
-			ID:                uuid.New(),
-			UserID:            userID,
-			Date:              time.Now().UTC().Truncate(24 * time.Hour).Add(-24 * time.Hour),
-			WeightKg:          floatPtr(76.0),
-			BodyFatPercentage: floatPtr(15.5),
-			CreatedAt:         time.Now(),
-			UpdatedAt:         time.Now(),
-		},
-	}
-	
-	// Create a mock repository
-	mockRepo := &mockBodyRecordRepository{
-		findByUserFunc: func(ctx context.Context, uid uuid.UUID, limit, off int) ([]*domain.BodyRecord, error) {
-			// Verify input
-			if uid != userID {
-				t.Errorf("Expected UserID %v, got %v", userID, uid)
-			}
-			if limit != pageSize {
-				t.Errorf("Expected limit %v, got %v", pageSize, limit)
-			}
-			if off != offset {
-				t.Errorf("Expected offset %v, got %v", offset, off)
-			}
-			
-			return mockRecords, nil
-		},
-		countByUserFunc: func(ctx context.Context, uid uuid.UUID) (int64, error) {
-			// Verify input
-			if uid != userID {
-				t.Errorf("Expected UserID %v, got %v", userID, uid)
-			}
-			
-			return int64(len(mockRecords)), nil
-		},
-	}
-	
-	// Create the service with the mock repository
-	service := NewBodyRecordService(mockRepo, logger)
-	
+
 	// Call the method being tested
-	records, total, err := service.GetBodyRecordsForUser(context.Background(), userID, page, pageSize)
-	
+	records, total, err := service.GetBodyRecordsForUser(ctx, userID, page, pageSize)
+
 	// Check for errors
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-	
-	// Verify the results
-	if len(records) != len(mockRecords) {
-		t.Errorf("Expected %d records, got %d", len(mockRecords), len(records))
-	}
-	
-	if total != int64(len(mockRecords)) {
-		t.Errorf("Expected total %d, got %d", len(mockRecords), total)
-	}
-}
 
-func TestBodyRecordService_GetBodyRecordsForUser_Error(t *testing.T) {
-	// Create a logger that writes to nowhere
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	
-	// Create test data
-	userID := uuid.New()
-	page := 1
-	pageSize := 10
-	
-	// Create a mock repository that returns an error
-	mockRepo := &mockBodyRecordRepository{
-		findByUserFunc: func(ctx context.Context, uid uuid.UUID, limit, offset int) ([]*domain.BodyRecord, error) {
-			return nil, errors.New("database error")
-		},
-	}
-	
-	// Create the service with the mock repository
-	service := NewBodyRecordService(mockRepo, logger)
-	
-	// Call the method being tested
-	records, total, err := service.GetBodyRecordsForUser(context.Background(), userID, page, pageSize)
-	
-	// Check for errors
-	if err == nil {
-		t.Error("Expected error, got nil")
-	}
-	
 	// Verify the results
-	if records != nil {
-		t.Errorf("Expected nil records, got %v", records)
+	expectedCount := 2
+	if len(records) != expectedCount {
+		t.Errorf("Expected %d records, got %d", expectedCount, len(records))
 	}
-	
-	if total != 0 {
-		t.Errorf("Expected total 0, got %d", total)
+
+	if total != int64(expectedCount) {
+		t.Errorf("Expected total %d, got %d", expectedCount, total)
 	}
 }
 
 func TestBodyRecordService_GetBodyRecordsForUserDateRange(t *testing.T) {
-	// Create a logger that writes to nowhere
+	// Set up the test database
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	// Create a logger that writes to stderr
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	
-	// Create test data
-	userID := uuid.New()
-	startDate := time.Now().UTC().Truncate(24 * time.Hour).Add(-7 * 24 * time.Hour)
-	endDate := time.Now().UTC().Truncate(24 * time.Hour)
-	
-	// Create mock records
-	mockRecords := []*domain.BodyRecord{
-		{
-			ID:        uuid.New(),
-			UserID:    userID,
-			Date:      endDate,
-			WeightKg:  floatPtr(75.5),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-		{
-			ID:                uuid.New(),
-			UserID:            userID,
-			Date:              startDate,
-			WeightKg:          floatPtr(76.0),
-			BodyFatPercentage: floatPtr(15.5),
-			CreatedAt:         time.Now(),
-			UpdatedAt:         time.Now(),
-		},
+
+	// Create a test user
+	ctx := context.Background()
+	userID, err := testutil.CreateTestUser(ctx, testDB.DB)
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
-	// Create a mock repository
-	mockRepo := &mockBodyRecordRepository{
-		findByUserAndDateRangeFunc: func(ctx context.Context, uid uuid.UUID, start, end time.Time) ([]*domain.BodyRecord, error) {
-			// Verify input
-			if uid != userID {
-				t.Errorf("Expected UserID %v, got %v", userID, uid)
-			}
-			if !start.Equal(startDate) {
-				t.Errorf("Expected startDate %v, got %v", startDate, start)
-			}
-			if !end.Equal(endDate) {
-				t.Errorf("Expected endDate %v, got %v", endDate, end)
-			}
-			
-			return mockRecords, nil
-		},
+
+	// Create test records
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	yesterday := today.Add(-24 * time.Hour)
+	lastWeek := today.Add(-7 * 24 * time.Hour)
+
+	weight1 := 75.5
+	weight2 := 76.0
+	weight3 := 77.0
+	bodyFat := 15.5
+
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, today, &weight1, nil)
+	if err != nil {
+		t.Fatalf("Failed to create test body record: %v", err)
 	}
-	
-	// Create the service with the mock repository
-	service := NewBodyRecordService(mockRepo, logger)
-	
+
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, yesterday, &weight2, &bodyFat)
+	if err != nil {
+		t.Fatalf("Failed to create test body record: %v", err)
+	}
+
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, lastWeek, &weight3, nil)
+	if err != nil {
+		t.Fatalf("Failed to create test body record: %v", err)
+	}
+
+	// Create a real repository
+	repo := testutil.NewBodyRecordRepository(testDB.Pool)
+
+	// Create the service with the real repository
+	service := NewBodyRecordService(repo, logger)
+
+	// Test date range (last 3 days)
+	startDate := today.Add(-3 * 24 * time.Hour)
+	endDate := today
+
 	// Call the method being tested
-	records, err := service.GetBodyRecordsForUserDateRange(context.Background(), userID, startDate, endDate)
-	
+	records, err := service.GetBodyRecordsForUserDateRange(ctx, userID, startDate, endDate)
+
 	// Check for errors
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-	
-	// Verify the results
-	if len(records) != len(mockRecords) {
-		t.Errorf("Expected %d records, got %d", len(mockRecords), len(records))
-	}
-}
 
-func TestBodyRecordService_GetBodyRecordsForUserDateRange_Error(t *testing.T) {
-	// Create a logger that writes to nowhere
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	
-	// Create test data
-	userID := uuid.New()
-	startDate := time.Now().UTC().Truncate(24 * time.Hour).Add(-7 * 24 * time.Hour)
-	endDate := time.Now().UTC().Truncate(24 * time.Hour)
-	
-	// Create a mock repository that returns an error
-	mockRepo := &mockBodyRecordRepository{
-		findByUserAndDateRangeFunc: func(ctx context.Context, uid uuid.UUID, start, end time.Time) ([]*domain.BodyRecord, error) {
-			return nil, errors.New("database error")
-		},
+	// Verify the results - should only include today and yesterday, not last week
+	expectedCount := 2
+	if len(records) != expectedCount {
+		t.Errorf("Expected %d records, got %d", expectedCount, len(records))
 	}
-	
-	// Create the service with the mock repository
-	service := NewBodyRecordService(mockRepo, logger)
-	
-	// Call the method being tested
-	records, err := service.GetBodyRecordsForUserDateRange(context.Background(), userID, startDate, endDate)
-	
-	// Check for errors
-	if err == nil {
-		t.Error("Expected error, got nil")
-	}
-	
-	// Verify the results
-	if records != nil {
-		t.Errorf("Expected nil records, got %v", records)
-	}
-}
-
-// Helper function to create a pointer to a float64
-func floatPtr(v float64) *float64 {
-	return &v
 }

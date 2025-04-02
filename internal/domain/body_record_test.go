@@ -7,6 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// TestBodyRecord_Validate tests the validation logic of the BodyRecord entity
+// This test doesn't need to be refactored to use a real database since it's
+// only testing the domain entity's validation logic, not any repository functionality.
 func TestBodyRecord_Validate(t *testing.T) {
 	// Create a valid body record
 	validRecord := &BodyRecord{

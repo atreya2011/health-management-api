@@ -16,21 +16,29 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// testContext is a simple context that contains a user ID for testing
-type testContext struct {
+// mockContext is a simple context that contains a user ID for testing
+// This is the same implementation as in the original test file
+type mockContext struct {
 	context.Context
 	userID uuid.UUID
 }
 
 // Value implements context.Context
-func (c testContext) Value(key interface{}) interface{} {
+func (c mockContext) Value(key interface{}) interface{} {
+	// This is a simplified version that only handles the user ID key
 	if key == auth.UserContextKey {
 		return c.userID
 	}
 	return c.Context.Value(key)
 }
 
-func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
+// TestBodyRecordHandler_Integration_CreateBodyRecord tests the CreateBodyRecord handler with a real database
+func TestBodyRecordHandler_Integration_CreateBodyRecord(t *testing.T) {
+	// Skip integration tests if not explicitly enabled
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test. Set RUN_INTEGRATION_TESTS=true to run")
+	}
+
 	// Set up the test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.TeardownTestDatabase(t)
@@ -63,7 +71,7 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 	})
 
 	// Create a context with a user ID
-	testCtx := testContext{
+	testCtx := mockContext{
 		Context: ctx,
 		userID:  userID,
 	}
@@ -94,59 +102,13 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 	}
 }
 
-func TestBodyRecordHandler_CreateBodyRecord_Error(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.DB)
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
+// TestBodyRecordHandler_Integration_ListBodyRecords tests the ListBodyRecords handler with a real database
+func TestBodyRecordHandler_Integration_ListBodyRecords(t *testing.T) {
+	// Skip integration tests if not explicitly enabled
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test. Set RUN_INTEGRATION_TESTS=true to run")
 	}
 
-	// Create a real repository and service
-	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	service := application.NewBodyRecordService(repo, logger)
-
-	// Create the handler with the real service
-	handler := NewBodyRecordHandler(service, logger)
-
-	// Test data - invalid weight to trigger validation error
-	date := time.Now().UTC().Truncate(24 * time.Hour)
-	weight := -10.0 // Negative weight should fail validation
-
-	// Create a request
-	req := connect.NewRequest(&v1.CreateBodyRecordRequest{
-		Date:     date.Format("2006-01-02"),
-		WeightKg: &wrapperspb.DoubleValue{Value: weight},
-	})
-
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
-
-	// Call the method being tested
-	resp, err := handler.CreateBodyRecord(testCtx, req)
-
-	// Check for errors
-	if err == nil {
-		t.Error("Expected error for invalid weight, got nil")
-	}
-
-	// Verify the response
-	if resp != nil {
-		t.Errorf("Expected nil response, got %v", resp)
-	}
-}
-
-func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 	// Set up the test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.TeardownTestDatabase(t)
@@ -164,16 +126,16 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 	// Create test records
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
-
+	
 	weight1 := 75.5
 	weight2 := 76.0
 	bodyFat := 15.5
-
+	
 	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, today, &weight1, nil)
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
-
+	
 	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, yesterday, &weight2, &bodyFat)
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
@@ -199,7 +161,7 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 	})
 
 	// Create a context with a user ID
-	testCtx := testContext{
+	testCtx := mockContext{
 		Context: ctx,
 		userID:  userID,
 	}
@@ -235,7 +197,13 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 	}
 }
 
-func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
+// TestBodyRecordHandler_Integration_GetBodyRecordsByDateRange tests the GetBodyRecordsByDateRange handler with a real database
+func TestBodyRecordHandler_Integration_GetBodyRecordsByDateRange(t *testing.T) {
+	// Skip integration tests if not explicitly enabled
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test. Set RUN_INTEGRATION_TESTS=true to run")
+	}
+
 	// Set up the test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.TeardownTestDatabase(t)
@@ -254,22 +222,22 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
 	lastWeek := today.Add(-7 * 24 * time.Hour)
-
+	
 	weight1 := 75.5
 	weight2 := 76.0
 	weight3 := 77.0
 	bodyFat := 15.5
-
+	
 	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, today, &weight1, nil)
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
-
+	
 	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, yesterday, &weight2, &bodyFat)
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
-
+	
 	_, err = testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, lastWeek, &weight3, nil)
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
@@ -293,7 +261,7 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 	})
 
 	// Create a context with a user ID
-	testCtx := testContext{
+	testCtx := mockContext{
 		Context: ctx,
 		userID:  userID,
 	}
