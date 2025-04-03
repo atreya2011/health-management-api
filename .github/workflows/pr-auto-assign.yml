@@ -1,0 +1,14 @@
+name: pr-auto-assign
+
+on:
+  pull_request:
+    types: [opened, unassigned]
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign PR creator
+        run: gh pr edit ${{ github.event.number }} --add-assignee ${{ github.actor }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

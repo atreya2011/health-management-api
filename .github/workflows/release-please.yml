@@ -12,7 +12,7 @@ jobs:
         with:
           release-type: go
           package-name: health-management-api
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
           pull-request-title-pattern: "chore: release ${version}"
           changelog-types: |
             [
