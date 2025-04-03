@@ -6,10 +6,11 @@
 # Set the base URL
 BASE_URL="http://localhost:8081"
 
-# Set the JWT token (replace with a valid token)
-# For testing, you can use a token with subject claim "test-subject-id"
-# which matches the mock data user
-JWT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDM2NjU1NTksImlhdCI6MTc0MzU3OTE1OSwibmFtZSI6IlRlc3QgVXNlciIsInN1YiI6InRlc3Qtc3ViamVjdC1pZCJ9.Fc3Kx3pcNi-livTP2mILLgH5zHaqczGOC0uCKsQRSs8"
+# Generate a fresh JWT token using the generate_token.go script
+echo "Generating a fresh JWT token..."
+JWT_TOKEN=$(go run scripts/generate_token.go | grep -v "Generated JWT Token:" | tr -d '\n')
+
+echo "Token generated successfully!"
 
 echo "Testing BodyRecord API..."
 echo "=========================="
