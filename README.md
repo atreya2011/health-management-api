@@ -28,6 +28,7 @@ The project follows a clean architecture approach with DDD principles:
 ```terminal
 .
 ├── api/proto/                # Protocol Buffer definitions
+├── bin/                      # Compiled binaries
 ├── cmd/server/               # Application entry point
 ├── configs/                  # Configuration files
 ├── db/
@@ -36,13 +37,16 @@ The project follows a clean architecture approach with DDD principles:
 ├── internal/
 │   ├── application/          # Application services
 │   ├── domain/               # Domain models and repository interfaces
-│   └── infrastructure/       # Implementation details
-│       ├── auth/             # JWT authentication
-│       ├── config/           # Configuration loading
-│       ├── log/              # Logging setup
-│       ├── persistence/      # Repository implementations
-│       └── rpc/              # Connect-RPC handlers
-└── third_party/              # Generated OpenAPI specs
+│   ├── infrastructure/       # Implementation details
+│   │   ├── auth/             # JWT authentication
+│   │   ├── config/           # Configuration loading
+│   │   ├── log/              # Logging setup
+│   │   ├── persistence/      # Repository implementations
+│   │   └── rpc/              # Connect-RPC handlers and generated code
+│   └── testutil/             # Testing utilities
+└── scripts/                  # Utility scripts
+    ├── generate_token.go     # JWT token generation for testing
+    └── test_body_record_api.sh # API testing script
 ```
 
 ## Getting Started
@@ -141,6 +145,31 @@ The application provides a command-line interface with the following commands:
 - `make sqlc`: Generate Go code from SQL queries
 - `make migrate-up`: Apply database migrations
 - `make migrate-down`: Revert the last database migration
+- `make setup-tools`: Install required development tools
+- `make generate-all`: Generate all code (protobuf, connect, sqlc)
+- `make init-db`: Initialize database (start container & run migrations)
+- `make clean`: Clean generated files and build artifacts
+
+### Utility Scripts
+
+The project includes utility scripts in the `scripts/` directory:
+
+- **generate_token.go**: Generate JWT tokens for testing or development
+
+  ```bash
+  go run scripts/generate_token.go
+  ```
+
+- **test_body_record_api.sh**: Test the Body Record API using curl
+
+  ```bash
+  ./scripts/test_body_record_api.sh
+  ```
+
+  This script demonstrates how to interact with the API using curl, including:
+  - Creating a new body record
+  - Listing body records (paginated)
+  - Getting body records by date range
 
 ### Adding New Features
 
@@ -167,7 +196,25 @@ The `internal/testutil` package provides utilities for testing with a real datab
 
 - Spinning up a PostgreSQL Docker container
 - Running migrations to set up the schema
-- Creating test data
+- Creating test data (users, body records, etc.)
 - Cleaning up after tests
 
-See `internal/testutil/README.md` for more details.
+Example usage:
+
+```go
+// Set up the test database
+testDB := testutil.SetupTestDatabase(t)
+defer testDB.TeardownTestDatabase(t)
+
+// Create a test user
+ctx := context.Background()
+userID, err := testutil.CreateTestUser(ctx, testDB.DB)
+if err != nil {
+    t.Fatalf("Failed to create test user: %v", err)
+}
+
+// Create a repository for testing
+repo := testutil.NewBodyRecordRepository(testDB.Pool)
+```
+
+See `internal/testutil/README.md` for more details on the available test utilities.
