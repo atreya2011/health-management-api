@@ -267,3 +267,34 @@ func CreateTestBodyRecord(ctx context.Context, testDB *TestDatabase, userID uuid
 func NewBodyRecordRepository(pool *pgxpool.Pool) domain.BodyRecordRepository {
 	return postgres.NewPgBodyRecordRepository(pool)
 }
+
+// CreateTestDiaryEntry creates a test diary entry in the database using sqlc
+func CreateTestDiaryEntry(ctx context.Context, testDB *TestDatabase, userID uuid.UUID, title string, content string, entryDate time.Time) (uuid.UUID, error) {
+	var titleStr sql.NullString
+	
+	if title != "" {
+		titleStr = sql.NullString{
+			String: title,
+			Valid:  true,
+		}
+	}
+	
+	params := db.CreateDiaryEntryParams{
+		UserID:    userID,
+		Title:     titleStr,
+		Content:   content,
+		EntryDate: entryDate,
+	}
+	
+	dbEntry, err := testDB.Queries.CreateDiaryEntry(ctx, params)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("could not create test diary entry: %w", err)
+	}
+	
+	return dbEntry.ID, nil
+}
+
+// NewDiaryEntryRepository creates a new diary entry repository for testing
+func NewDiaryEntryRepository(pool *pgxpool.Pool) domain.DiaryEntryRepository {
+	return postgres.NewPgDiaryEntryRepository(pool)
+}
