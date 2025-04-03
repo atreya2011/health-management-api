@@ -80,7 +80,7 @@ jobs:
           HEALTHAPP_DATABASE_URL: postgres://healthapp_user:verysecretpassword@localhost:5432/healthapp_db_test?sslmode=disable
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: ./coverage.txt
           fail_ci_if_error: false
