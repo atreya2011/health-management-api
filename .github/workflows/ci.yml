@@ -34,7 +34,7 @@ jobs:
         run: buf breaking api/proto --against "https://${{ github.token }}:x-oauth-basic@github.com/${GITHUB_REPOSITORY}.git#branch=main"
 
       - name: Lint Go
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v7
         with:
           version: latest
 
