@@ -99,10 +99,12 @@ func runServer() {
 	// Initialize repositories
 	userRepo := postgres.NewPgUserRepository(dbPool)
 	bodyRecordRepo := postgres.NewPgBodyRecordRepository(dbPool)
+	diaryEntryRepo := postgres.NewPgDiaryEntryRepository(dbPool)
 	// Initialize other repositories as needed
 
 	// Initialize application services
 	bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger)
+	diaryService := application.NewDiaryService(diaryEntryRepo, logger)
 	// Initialize other services as needed
 
 	// Initialize auth interceptor
@@ -119,6 +121,7 @@ func runServer() {
 
 	// Initialize handlers
 	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordService, logger)
+	diaryHandler := handlers.NewDiaryHandler(diaryService, logger)
 	// Initialize other handlers as needed
 
 	// Create router
@@ -126,6 +129,7 @@ func runServer() {
 
 	// Register Connect handlers
 	mux.Handle(healthappv1connect.NewBodyRecordServiceHandler(bodyRecordHandler, interceptors))
+	mux.Handle(healthappv1connect.NewDiaryServiceHandler(diaryHandler, interceptors))
 	// Register other handlers as needed
 
 	// Serve OpenAPI spec
