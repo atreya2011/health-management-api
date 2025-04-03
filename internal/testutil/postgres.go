@@ -298,3 +298,65 @@ func CreateTestDiaryEntry(ctx context.Context, testDB *TestDatabase, userID uuid
 func NewDiaryEntryRepository(pool *pgxpool.Pool) domain.DiaryEntryRepository {
 	return postgres.NewPgDiaryEntryRepository(pool)
 }
+
+// CreateTestExerciseRecord creates a test exercise record in the database using sqlc
+func CreateTestExerciseRecord(ctx context.Context, testDB *TestDatabase, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (*domain.ExerciseRecord, error) {
+	var durationMinutesSQL, caloriesBurnedSQL sql.NullInt32
+	
+	if durationMinutes != nil {
+		durationMinutesSQL = sql.NullInt32{
+			Int32: *durationMinutes,
+			Valid: true,
+		}
+	}
+	
+	if caloriesBurned != nil {
+		caloriesBurnedSQL = sql.NullInt32{
+			Int32: *caloriesBurned,
+			Valid: true,
+		}
+	}
+	
+	params := db.CreateExerciseRecordParams{
+		UserID:          userID,
+		ExerciseName:    exerciseName,
+		DurationMinutes: durationMinutesSQL,
+		CaloriesBurned:  caloriesBurnedSQL,
+		RecordedAt:      recordedAt,
+	}
+	
+	dbRecord, err := testDB.Queries.CreateExerciseRecord(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("could not create test exercise record: %w", err)
+	}
+	
+	// Convert sql.NullInt32 to *int32
+	var durationMinutesPtr *int32
+	var caloriesBurnedPtr *int32
+	
+	if dbRecord.DurationMinutes.Valid {
+		val := dbRecord.DurationMinutes.Int32
+		durationMinutesPtr = &val
+	}
+	
+	if dbRecord.CaloriesBurned.Valid {
+		val := dbRecord.CaloriesBurned.Int32
+		caloriesBurnedPtr = &val
+	}
+	
+	return &domain.ExerciseRecord{
+		ID:              dbRecord.ID,
+		UserID:          dbRecord.UserID,
+		ExerciseName:    dbRecord.ExerciseName,
+		DurationMinutes: durationMinutesPtr,
+		CaloriesBurned:  caloriesBurnedPtr,
+		RecordedAt:      dbRecord.RecordedAt,
+		CreatedAt:       dbRecord.CreatedAt,
+		UpdatedAt:       dbRecord.UpdatedAt,
+	}, nil
+}
+
+// NewExerciseRecordRepository creates a new exercise record repository for testing
+func NewExerciseRecordRepository(pool *pgxpool.Pool) domain.ExerciseRecordRepository {
+	return postgres.NewPgExerciseRecordRepository(pool)
+}
