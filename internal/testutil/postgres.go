@@ -7,12 +7,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/atreya2011/health-management-api/internal/domain"
 	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
+	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq" // Import the postgres driver
@@ -26,6 +28,7 @@ type TestDatabase struct {
 	Resource *dockertest.Resource
 	Pool2    *dockertest.Pool
 	DB       *sql.DB
+	Queries  *db.Queries
 }
 
 // SetupTestDatabase creates a new PostgreSQL container and sets up the database
@@ -69,20 +72,20 @@ func SetupTestDatabase(t *testing.T) *TestDatabase {
 	databaseURL := fmt.Sprintf("postgres://postgres:postgres@%s/testdb?sslmode=disable", hostAndPort)
 
 	// Wait for the database to be ready
-	var db *sql.DB
+	var sqlDB *sql.DB
 	if err = pool.Retry(func() error {
 		var err error
-		db, err = sql.Open("postgres", databaseURL)
+		sqlDB, err = sql.Open("postgres", databaseURL)
 		if err != nil {
 			return err
 		}
-		return db.Ping()
+		return sqlDB.Ping()
 	}); err != nil {
 		t.Fatalf("Could not connect to docker: %s", err)
 	}
 
 	// Run migrations
-	if err := runMigrations(db); err != nil {
+	if err := runMigrations(sqlDB); err != nil {
 		t.Fatalf("Could not run migrations: %s", err)
 	}
 
@@ -92,11 +95,16 @@ func SetupTestDatabase(t *testing.T) *TestDatabase {
 		t.Fatalf("Could not create connection pool: %s", err)
 	}
 
+	// Create a pgx adapter and initialize sqlc queries
+	adapter := postgres.NewPgxAdapter(pgxPool)
+	sqlcQueries := db.New(adapter)
+
 	return &TestDatabase{
 		Pool:     pgxPool,
 		Resource: resource,
 		Pool2:    pool,
-		DB:       db,
+		DB:       sqlDB,
+		Queries:  sqlcQueries,
 	}
 }
 
@@ -186,22 +194,18 @@ func findMigrationFiles() ([]string, error) {
 	return nil, fmt.Errorf("could not find migrations directory")
 }
 
-// CreateTestUser creates a test user in the database
-func CreateTestUser(ctx context.Context, db *sql.DB) (uuid.UUID, error) {
-	var userID uuid.UUID
-	err := db.QueryRowContext(
-		ctx,
-		"INSERT INTO users (subject_id) VALUES ($1) RETURNING id",
-		fmt.Sprintf("test|%s", uuid.New().String()),
-	).Scan(&userID)
+// CreateTestUser creates a test user in the database using sqlc
+func CreateTestUser(ctx context.Context, testDB *TestDatabase) (uuid.UUID, error) {
+	subjectID := fmt.Sprintf("test|%s", uuid.New().String())
+	user, err := testDB.Queries.CreateUser(ctx, subjectID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("could not create test user: %w", err)
 	}
-	return userID, nil
+	return user.ID, nil
 }
 
-// CreateTestBodyRecord creates a test body record in the database
-func CreateTestBodyRecord(ctx context.Context, db *sql.DB, userID uuid.UUID, date time.Time, weight *float64, bodyFat *float64) (*domain.BodyRecord, error) {
+// CreateTestBodyRecord creates a test body record in the database using sqlc
+func CreateTestBodyRecord(ctx context.Context, testDB *TestDatabase, userID uuid.UUID, date time.Time, weight *float64, bodyFat *float64) (*domain.BodyRecord, error) {
 	var weightStr, bodyFatStr sql.NullString
 	
 	if weight != nil {
@@ -218,29 +222,44 @@ func CreateTestBodyRecord(ctx context.Context, db *sql.DB, userID uuid.UUID, dat
 		}
 	}
 	
-	var id uuid.UUID
-	var createdAt, updatedAt time.Time
+	params := db.CreateBodyRecordParams{
+		UserID:            userID,
+		Date:              date,
+		WeightKg:          weightStr,
+		BodyFatPercentage: bodyFatStr,
+	}
 	
-	err := db.QueryRowContext(
-		ctx,
-		`INSERT INTO body_records (user_id, date, weight_kg, body_fat_percentage)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at, updated_at`,
-		userID, date, weightStr, bodyFatStr,
-	).Scan(&id, &createdAt, &updatedAt)
-	
+	dbRecord, err := testDB.Queries.CreateBodyRecord(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("could not create test body record: %w", err)
 	}
 	
+	// Convert sql.NullString to *float64
+	var weightKg *float64
+	var bodyFatPercentage *float64
+	
+	if dbRecord.WeightKg.Valid {
+		val, err := strconv.ParseFloat(dbRecord.WeightKg.String, 64)
+		if err == nil {
+			weightKg = &val
+		}
+	}
+	
+	if dbRecord.BodyFatPercentage.Valid {
+		val, err := strconv.ParseFloat(dbRecord.BodyFatPercentage.String, 64)
+		if err == nil {
+			bodyFatPercentage = &val
+		}
+	}
+	
 	return &domain.BodyRecord{
-		ID:                id,
-		UserID:            userID,
-		Date:              date,
-		WeightKg:          weight,
-		BodyFatPercentage: bodyFat,
-		CreatedAt:         createdAt,
-		UpdatedAt:         updatedAt,
+		ID:                dbRecord.ID,
+		UserID:            dbRecord.UserID,
+		Date:              dbRecord.Date,
+		WeightKg:          weightKg,
+		BodyFatPercentage: bodyFatPercentage,
+		CreatedAt:         dbRecord.CreatedAt,
+		UpdatedAt:         dbRecord.UpdatedAt,
 	}, nil
 }
 
