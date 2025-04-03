@@ -3,7 +3,7 @@ configs/.env
 configs/config.local.yaml
 
 # Binaries
-bin/server
+bin/healthapp_server
 
 # Generated code (re-generate in CI/build)
 internal/infrastructure/persistence/postgres/db/
