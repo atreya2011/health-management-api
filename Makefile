@@ -41,27 +41,25 @@ test: ## Run tests with real database
 build: ## Build the server binary
 	@echo "Building server..."
 	mkdir -p bin
-	go build -o bin/server ./cmd/server
+	go build -o ./bin/healthapp_server
 
 run: build ## Build and run the server
 	@echo "Running server..."
-	./bin/server serve
+	./bin/healthapp_server serve
 
 seed: build ## Seed the database with mock data
 	@echo "Seeding database with mock data..."
-	./bin/server seed
+	./bin/healthapp_server seed
 
 clean: ## Clean generated files and build artifacts
 	@echo "Cleaning generated files and build artifacts..."
-	rm -rf bin
+	rm -rf bin/*
 	rm -rf internal/infrastructure/persistence/postgres/db/*
 	rm -rf internal/infrastructure/rpc/gen/*
-	rm -rf third_party/openapi/*
 	# Keep .gitkeep files if any
 	find internal/infrastructure/persistence/postgres/db/ -type f ! -name '.gitkeep' -delete
 	find internal/infrastructure/rpc/gen/ -type f ! -name '.gitkeep' -delete
-	find third_party/openapi/ -type f ! -name '.gitkeep' -delete
-
+	find bin/ -type f ! -name '.gitkeep' -delete
 
 # Combine setup steps
 setup-tools:
