@@ -2,55 +2,49 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/atreya2011/health-management-api/internal/domain"
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pkg/errors"
 )
 
 // pgExerciseRecordRepository implements the domain.ExerciseRecordRepository interface
 type pgExerciseRecordRepository struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	q *db.Queries
 }
 
 // NewPgExerciseRecordRepository creates a new PostgreSQL exercise record repository
 func NewPgExerciseRecordRepository(pool *pgxpool.Pool) domain.ExerciseRecordRepository {
-	adapter := NewPgxAdapter(pool)
 	return &pgExerciseRecordRepository{
-		pool: pool,
-		q:    db.New(adapter),
+		q: db.New(pool),
 	}
 }
 
 // Create creates a new exercise record
 func (r *pgExerciseRecordRepository) Create(ctx context.Context, record *domain.ExerciseRecord) (*domain.ExerciseRecord, error) {
-	// Convert *int32 to sql.NullInt32
-	var durationMinutes sql.NullInt32
+	var durationMinutesVal, caloriesBurnedVal pgtype.Int4
+
 	if record.DurationMinutes != nil {
-		durationMinutes = sql.NullInt32{
-			Int32: *record.DurationMinutes,
-			Valid: true,
-		}
+		durationMinutesVal = pgtype.Int4{Int32: *record.DurationMinutes, Valid: true}
 	}
 
-	var caloriesBurned sql.NullInt32
 	if record.CaloriesBurned != nil {
-		caloriesBurned = sql.NullInt32{
-			Int32: *record.CaloriesBurned,
-			Valid: true,
-		}
+		caloriesBurnedVal = pgtype.Int4{Int32: *record.CaloriesBurned, Valid: true}
 	}
+
+	recordedAtUTC := record.RecordedAt.UTC()
 
 	params := db.CreateExerciseRecordParams{
 		UserID:          record.UserID,
 		ExerciseName:    record.ExerciseName,
-		DurationMinutes: durationMinutes,
-		CaloriesBurned:  caloriesBurned,
-		RecordedAt:      record.RecordedAt,
+		DurationMinutes: durationMinutesVal,
+		CaloriesBurned:  caloriesBurnedVal,
+		RecordedAt:      recordedAtUTC,
 	}
 
 	dbRecord, err := r.q.CreateExerciseRecord(ctx, params)
@@ -91,10 +85,10 @@ func (r *pgExerciseRecordRepository) Delete(ctx context.Context, id, userID uuid
 
 	err := r.q.DeleteExerciseRecord(ctx, params)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return domain.ErrExerciseRecordNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
 		}
-		return fmt.Errorf("failed to delete exercise record: %w", err)
+		return errors.Wrap(err, "failed to delete exercise record")
 	}
 
 	return nil
@@ -110,19 +104,16 @@ func (r *pgExerciseRecordRepository) CountByUser(ctx context.Context, userID uui
 	return count, nil
 }
 
-// toDomainExerciseRecord converts a db.ExerciseRecord to a domain.ExerciseRecord
+// toDomainExerciseRecord converts a db.ExerciseRecord (pgx-based) to a domain.ExerciseRecord
 func toDomainExerciseRecord(dbRecord db.ExerciseRecord) *domain.ExerciseRecord {
-	// Convert sql.NullInt32 to *int32
 	var durationMinutes *int32
 	if dbRecord.DurationMinutes.Valid {
-		d := dbRecord.DurationMinutes.Int32
-		durationMinutes = &d
+		durationMinutes = &dbRecord.DurationMinutes.Int32
 	}
 
 	var caloriesBurned *int32
 	if dbRecord.CaloriesBurned.Valid {
-		c := dbRecord.CaloriesBurned.Int32
-		caloriesBurned = &c
+		caloriesBurned = &dbRecord.CaloriesBurned.Int32
 	}
 
 	return &domain.ExerciseRecord{

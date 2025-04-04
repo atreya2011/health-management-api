@@ -7,15 +7,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq" // Import the postgres driver
 	"github.com/ory/dockertest/v3"
@@ -95,9 +90,8 @@ func SetupTestDatabase(t *testing.T) *TestDatabase {
 		t.Fatalf("Could not create connection pool: %s", err)
 	}
 
-	// Create a pgx adapter and initialize sqlc queries
-	adapter := postgres.NewPgxAdapter(pgxPool)
-	sqlcQueries := db.New(adapter)
+	// Initialize sqlc queries directly with the pool (pgx/v5 mode)
+	sqlcQueries := db.New(pgxPool) // Pass pool directly
 
 	return &TestDatabase{
 		Pool:     pgxPool,
@@ -194,169 +188,16 @@ func findMigrationFiles() ([]string, error) {
 	return nil, fmt.Errorf("could not find migrations directory")
 }
 
-// CreateTestUser creates a test user in the database using sqlc
-func CreateTestUser(ctx context.Context, testDB *TestDatabase) (uuid.UUID, error) {
-	subjectID := fmt.Sprintf("test|%s", uuid.New().String())
-	user, err := testDB.Queries.CreateUser(ctx, subjectID)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("could not create test user: %w", err)
-	}
-	return user.ID, nil
-}
+// CreateTestUser moved to user_helpers.go
 
-// CreateTestBodyRecord creates a test body record in the database using sqlc
-func CreateTestBodyRecord(ctx context.Context, testDB *TestDatabase, userID uuid.UUID, date time.Time, weight *float64, bodyFat *float64) (*domain.BodyRecord, error) {
-	var weightStr, bodyFatStr sql.NullString
-	
-	if weight != nil {
-		weightStr = sql.NullString{
-			String: fmt.Sprintf("%.2f", *weight),
-			Valid:  true,
-		}
-	}
-	
-	if bodyFat != nil {
-		bodyFatStr = sql.NullString{
-			String: fmt.Sprintf("%.2f", *bodyFat),
-			Valid:  true,
-		}
-	}
-	
-	params := db.CreateBodyRecordParams{
-		UserID:            userID,
-		Date:              date,
-		WeightKg:          weightStr,
-		BodyFatPercentage: bodyFatStr,
-	}
-	
-	dbRecord, err := testDB.Queries.CreateBodyRecord(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("could not create test body record: %w", err)
-	}
-	
-	// Convert sql.NullString to *float64
-	var weightKg *float64
-	var bodyFatPercentage *float64
-	
-	if dbRecord.WeightKg.Valid {
-		val, err := strconv.ParseFloat(dbRecord.WeightKg.String, 64)
-		if err == nil {
-			weightKg = &val
-		}
-	}
-	
-	if dbRecord.BodyFatPercentage.Valid {
-		val, err := strconv.ParseFloat(dbRecord.BodyFatPercentage.String, 64)
-		if err == nil {
-			bodyFatPercentage = &val
-		}
-	}
-	
-	return &domain.BodyRecord{
-		ID:                dbRecord.ID,
-		UserID:            dbRecord.UserID,
-		Date:              dbRecord.Date,
-		WeightKg:          weightKg,
-		BodyFatPercentage: bodyFatPercentage,
-		CreatedAt:         dbRecord.CreatedAt,
-		UpdatedAt:         dbRecord.UpdatedAt,
-	}, nil
-}
+// CreateTestBodyRecord moved to body_record_helpers.go
 
-// NewBodyRecordRepository creates a new body record repository for testing
-func NewBodyRecordRepository(pool *pgxpool.Pool) domain.BodyRecordRepository {
-	return postgres.NewPgBodyRecordRepository(pool)
-}
+// NewBodyRecordRepository moved to body_record_helpers.go
 
-// CreateTestDiaryEntry creates a test diary entry in the database using sqlc
-func CreateTestDiaryEntry(ctx context.Context, testDB *TestDatabase, userID uuid.UUID, title string, content string, entryDate time.Time) (uuid.UUID, error) {
-	var titleStr sql.NullString
-	
-	if title != "" {
-		titleStr = sql.NullString{
-			String: title,
-			Valid:  true,
-		}
-	}
-	
-	params := db.CreateDiaryEntryParams{
-		UserID:    userID,
-		Title:     titleStr,
-		Content:   content,
-		EntryDate: entryDate,
-	}
-	
-	dbEntry, err := testDB.Queries.CreateDiaryEntry(ctx, params)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("could not create test diary entry: %w", err)
-	}
-	
-	return dbEntry.ID, nil
-}
+// CreateTestDiaryEntry moved to diary_entry_helpers.go
 
-// NewDiaryEntryRepository creates a new diary entry repository for testing
-func NewDiaryEntryRepository(pool *pgxpool.Pool) domain.DiaryEntryRepository {
-	return postgres.NewPgDiaryEntryRepository(pool)
-}
+// NewDiaryEntryRepository moved to diary_entry_helpers.go
 
-// CreateTestExerciseRecord creates a test exercise record in the database using sqlc
-func CreateTestExerciseRecord(ctx context.Context, testDB *TestDatabase, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (*domain.ExerciseRecord, error) {
-	var durationMinutesSQL, caloriesBurnedSQL sql.NullInt32
-	
-	if durationMinutes != nil {
-		durationMinutesSQL = sql.NullInt32{
-			Int32: *durationMinutes,
-			Valid: true,
-		}
-	}
-	
-	if caloriesBurned != nil {
-		caloriesBurnedSQL = sql.NullInt32{
-			Int32: *caloriesBurned,
-			Valid: true,
-		}
-	}
-	
-	params := db.CreateExerciseRecordParams{
-		UserID:          userID,
-		ExerciseName:    exerciseName,
-		DurationMinutes: durationMinutesSQL,
-		CaloriesBurned:  caloriesBurnedSQL,
-		RecordedAt:      recordedAt,
-	}
-	
-	dbRecord, err := testDB.Queries.CreateExerciseRecord(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("could not create test exercise record: %w", err)
-	}
-	
-	// Convert sql.NullInt32 to *int32
-	var durationMinutesPtr *int32
-	var caloriesBurnedPtr *int32
-	
-	if dbRecord.DurationMinutes.Valid {
-		val := dbRecord.DurationMinutes.Int32
-		durationMinutesPtr = &val
-	}
-	
-	if dbRecord.CaloriesBurned.Valid {
-		val := dbRecord.CaloriesBurned.Int32
-		caloriesBurnedPtr = &val
-	}
-	
-	return &domain.ExerciseRecord{
-		ID:              dbRecord.ID,
-		UserID:          dbRecord.UserID,
-		ExerciseName:    dbRecord.ExerciseName,
-		DurationMinutes: durationMinutesPtr,
-		CaloriesBurned:  caloriesBurnedPtr,
-		RecordedAt:      dbRecord.RecordedAt,
-		CreatedAt:       dbRecord.CreatedAt,
-		UpdatedAt:       dbRecord.UpdatedAt,
-	}, nil
-}
+// CreateTestExerciseRecord moved to exercise_record_helpers.go
 
-// NewExerciseRecordRepository creates a new exercise record repository for testing
-func NewExerciseRecordRepository(pool *pgxpool.Pool) domain.ExerciseRecordRepository {
-	return postgres.NewPgExerciseRecordRepository(pool)
-}
+// NewExerciseRecordRepository moved to exercise_record_helpers.go

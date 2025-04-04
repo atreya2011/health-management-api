@@ -11,10 +11,12 @@ import (
 	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
 	applog "github.com/atreya2011/health-management-api/internal/infrastructure/log"
 	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
+	"github.com/atreya2011/health-management-api/internal/testutil" // Added import
 )
 
 var (
 	days int
+	mock bool
 )
 
 // seedCmd represents the seed command
@@ -32,6 +34,7 @@ func init() {
 
 	// Local flags
 	seedCmd.Flags().IntVarP(&days, "days", "d", 30, "number of days to generate mock data for")
+	seedCmd.Flags().BoolVarP(&mock, "mock", "m", false, "seed mock data for testing")
 }
 
 func runSeed() {
@@ -80,7 +83,7 @@ func runSeed() {
 				return
 			}
 			logger.Info("Created test user", "subjectID", "test-subject-id")
-			
+
 			// Get the created user
 			testUser, err = userRepo.FindBySubjectID(ctx, "test-subject-id")
 			if err != nil {
@@ -92,36 +95,49 @@ func runSeed() {
 			return
 		}
 	}
-	
+
 	logger.Info("Using test user for mock data", "userID", testUser.ID)
-	
+
 	// Create mock body records for the specified number of days
 	now := time.Now().UTC().Truncate(24 * time.Hour)
-	
+
 	for i := 0; i < days; i++ {
 		date := now.AddDate(0, 0, -i)
-		
+
 		// Generate some realistic but varying data
 		weight := 70.0 + float64(i%5)
 		bodyFat := 15.0 + float64(i%3)
-		
+
 		record := &domain.BodyRecord{
 			UserID:            testUser.ID,
 			Date:              date,
 			WeightKg:          &weight,
 			BodyFatPercentage: &bodyFat,
 		}
-		
+
 		_, err := bodyRecordRepo.Save(ctx, record)
 		if err != nil {
 			logger.Warn("Failed to create mock body record", "date", date, "error", err)
 			continue
 		}
-		
+
 		if verboseMode {
 			logger.Info("Created mock body record", "date", date, "weight", weight, "bodyFat", bodyFat)
 		}
 	}
-	
-	logger.Info("Mock data seeding completed successfully", "days", days)
+
+	// Seed mock columns if requested
+	if mock {
+		logger.Info("Seeding mock columns using testutil...")
+		err := testutil.SeedMockColumns(ctx, dbPool)
+		if err != nil {
+			logger.Error("Failed to seed mock columns", "error", err)
+			// Decide if we should return or just log the error
+			// For seeding, often logging is sufficient, but depends on requirements.
+		} else {
+			logger.Info("Mock columns seeded successfully")
+		}
+	}
+
+	logger.Info("Mock data seeding completed successfully", "days", days, "mock", mock)
 }

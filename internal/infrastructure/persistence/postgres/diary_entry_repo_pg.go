@@ -2,46 +2,44 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/atreya2011/health-management-api/internal/domain"
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pkg/errors"
 )
 
 // pgDiaryEntryRepository implements the domain.DiaryEntryRepository interface
 type pgDiaryEntryRepository struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	q *db.Queries
 }
 
 // NewPgDiaryEntryRepository creates a new PostgreSQL diary entry repository
 func NewPgDiaryEntryRepository(pool *pgxpool.Pool) domain.DiaryEntryRepository {
-	adapter := NewPgxAdapter(pool)
 	return &pgDiaryEntryRepository{
-		pool: pool,
-		q:    db.New(adapter),
+		q: db.New(pool),
 	}
 }
 
 // Create creates a new diary entry
 func (r *pgDiaryEntryRepository) Create(ctx context.Context, entry *domain.DiaryEntry) (*domain.DiaryEntry, error) {
-	// Convert *string to sql.NullString
-	var title sql.NullString
+	var titleVal pgtype.Text
 	if entry.Title != nil {
-		title = sql.NullString{
-			String: *entry.Title,
-			Valid:  true,
-		}
+		titleVal = pgtype.Text{String: *entry.Title, Valid: true}
 	}
+
+	pgDate := pgtype.Date{Time: entry.EntryDate, Valid: true}
 
 	params := db.CreateDiaryEntryParams{
 		UserID:    entry.UserID,
-		Title:     title,
+		Title:     titleVal,
 		Content:   entry.Content,
-		EntryDate: entry.EntryDate,
+		EntryDate: pgDate,
 	}
 
 	dbEntry, err := r.q.CreateDiaryEntry(ctx, params)
@@ -54,28 +52,24 @@ func (r *pgDiaryEntryRepository) Create(ctx context.Context, entry *domain.Diary
 
 // Update updates an existing diary entry
 func (r *pgDiaryEntryRepository) Update(ctx context.Context, entry *domain.DiaryEntry) (*domain.DiaryEntry, error) {
-	// Convert *string to sql.NullString
-	var title sql.NullString
+	var titleVal pgtype.Text
 	if entry.Title != nil {
-		title = sql.NullString{
-			String: *entry.Title,
-			Valid:  true,
-		}
+		titleVal = pgtype.Text{String: *entry.Title, Valid: true}
 	}
 
 	params := db.UpdateDiaryEntryParams{
 		ID:      entry.ID,
-		Title:   title,
+		Title:   titleVal,
 		Content: entry.Content,
 		UserID:  entry.UserID,
 	}
 
 	dbEntry, err := r.q.UpdateDiaryEntry(ctx, params)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrDiaryEntryNotFound
 		}
-		return nil, fmt.Errorf("failed to update diary entry: %w", err)
+		return nil, errors.Wrap(err, "failed to update diary entry")
 	}
 
 	return toDomainDiaryEntry(dbEntry), nil
@@ -90,10 +84,10 @@ func (r *pgDiaryEntryRepository) FindByID(ctx context.Context, id, userID uuid.U
 
 	dbEntry, err := r.q.GetDiaryEntryByID(ctx, params)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrDiaryEntryNotFound
 		}
-		return nil, fmt.Errorf("failed to find diary entry: %w", err)
+		return nil, errors.Wrap(err, "failed to find diary entry")
 	}
 
 	return toDomainDiaryEntry(dbEntry), nil
@@ -129,10 +123,10 @@ func (r *pgDiaryEntryRepository) Delete(ctx context.Context, id, userID uuid.UUI
 
 	err := r.q.DeleteDiaryEntry(ctx, params)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return domain.ErrDiaryEntryNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
 		}
-		return fmt.Errorf("failed to delete diary entry: %w", err)
+		return errors.Wrap(err, "failed to delete diary entry")
 	}
 
 	return nil
@@ -148,13 +142,16 @@ func (r *pgDiaryEntryRepository) CountByUser(ctx context.Context, userID uuid.UU
 	return count, nil
 }
 
-// toDomainDiaryEntry converts a db.DiaryEntry to a domain.DiaryEntry
+// toDomainDiaryEntry converts a db.DiaryEntry (pgx-based) to a domain.DiaryEntry
 func toDomainDiaryEntry(dbEntry db.DiaryEntry) *domain.DiaryEntry {
-	// Convert sql.NullString to *string
 	var title *string
 	if dbEntry.Title.Valid {
-		t := dbEntry.Title.String
-		title = &t
+		title = &dbEntry.Title.String
+	}
+
+	var entryDateVal time.Time
+	if dbEntry.EntryDate.Valid {
+		entryDateVal = dbEntry.EntryDate.Time
 	}
 
 	return &domain.DiaryEntry{
@@ -162,7 +159,7 @@ func toDomainDiaryEntry(dbEntry db.DiaryEntry) *domain.DiaryEntry {
 		UserID:    dbEntry.UserID,
 		Title:     title,
 		Content:   dbEntry.Content,
-		EntryDate: dbEntry.EntryDate,
+		EntryDate: entryDateVal,
 		CreatedAt: dbEntry.CreatedAt,
 		UpdatedAt: dbEntry.UpdatedAt,
 	}

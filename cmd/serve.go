@@ -101,13 +101,13 @@ func runServer() {
 	bodyRecordRepo := postgres.NewPgBodyRecordRepository(dbPool)
 	diaryEntryRepo := postgres.NewPgDiaryEntryRepository(dbPool)
 	exerciseRecordRepo := postgres.NewPgExerciseRecordRepository(dbPool)
-	// Initialize other repositories as needed
+	columnRepo := postgres.NewPgColumnRepository(dbPool)
 
 	// Initialize application services
 	bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger)
 	diaryService := application.NewDiaryService(diaryEntryRepo, logger)
 	exerciseRecordService := application.NewExerciseRecordService(exerciseRecordRepo, logger)
-	// Initialize other services as needed
+	columnService := application.NewColumnService(columnRepo, logger)
 
 	// Initialize auth interceptor
 	jwtConfig := &auth.JWTConfig{
@@ -125,7 +125,7 @@ func runServer() {
 	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordService, logger)
 	diaryHandler := handlers.NewDiaryHandler(diaryService, logger)
 	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordService, logger)
-	// Initialize other handlers as needed
+	columnHandler := handlers.NewColumnHandler(columnService, logger)
 
 	// Create router
 	mux := http.NewServeMux()
@@ -134,7 +134,8 @@ func runServer() {
 	mux.Handle(healthappv1connect.NewBodyRecordServiceHandler(bodyRecordHandler, interceptors))
 	mux.Handle(healthappv1connect.NewDiaryServiceHandler(diaryHandler, interceptors))
 	mux.Handle(healthappv1connect.NewExerciseRecordServiceHandler(exerciseRecordHandler, interceptors))
-	// Register other handlers as needed
+	// Column service doesn't require authentication
+	mux.Handle(healthappv1connect.NewColumnServiceHandler(columnHandler))
 
 	// Serve OpenAPI spec
 	mux.Handle("/openapi/", http.StripPrefix("/openapi/", http.FileServer(http.Dir("./third_party/openapi"))))

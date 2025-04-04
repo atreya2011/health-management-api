@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,7 +21,12 @@ type Column struct {
 
 // Validate performs validation on the column
 func (c *Column) Validate() error {
-	// Add validation rules here, e.g., non-empty title and content
+	if c.Title == "" {
+		return errors.New("title cannot be empty")
+	}
+	if c.Content == "" {
+		return errors.New("content cannot be empty")
+	}
 	return nil
 }
 

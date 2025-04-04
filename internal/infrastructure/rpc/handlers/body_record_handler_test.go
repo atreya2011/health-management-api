@@ -40,7 +40,7 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestBodyRecordHandler_CreateBodyRecord_Error(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -169,12 +169,12 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 	weight2 := 76.0
 	bodyFat := 15.5
 
-	_, err = testutil.CreateTestBodyRecord(ctx, testDB, userID, today, &weight1, nil)
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.Queries, userID, today, &weight1, nil) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
 
-	_, err = testutil.CreateTestBodyRecord(ctx, testDB, userID, yesterday, &weight2, &bodyFat)
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.Queries, userID, yesterday, &weight2, &bodyFat) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -260,17 +260,17 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 	weight3 := 77.0
 	bodyFat := 15.5
 
-	_, err = testutil.CreateTestBodyRecord(ctx, testDB, userID, today, &weight1, nil)
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.Queries, userID, today, &weight1, nil) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
 
-	_, err = testutil.CreateTestBodyRecord(ctx, testDB, userID, yesterday, &weight2, &bodyFat)
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.Queries, userID, yesterday, &weight2, &bodyFat) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
 
-	_, err = testutil.CreateTestBodyRecord(ctx, testDB, userID, lastWeek, &weight3, nil)
+	_, err = testutil.CreateTestBodyRecord(ctx, testDB.Queries, userID, lastWeek, &weight3, nil) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}

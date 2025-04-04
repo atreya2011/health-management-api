@@ -24,7 +24,7 @@ func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -103,8 +103,8 @@ func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
 	title := "Original Title"
 	content := "Original content."
-	
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB, userID, title, content, entryDate)
+
+	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, title, content, entryDate) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestDiaryHandler_GetDiaryEntry(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -178,8 +178,8 @@ func TestDiaryHandler_GetDiaryEntry(t *testing.T) {
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
 	title := "Test Title"
 	content := "Test content."
-	
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB, userID, title, content, entryDate)
+
+	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, title, content, entryDate) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -247,12 +247,12 @@ func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
 
-	_, err = testutil.CreateTestDiaryEntry(ctx, testDB, userID, "Today's Entry", "Content for today", today)
+	_, err = testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, "Today's Entry", "Content for today", today) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	_, err = testutil.CreateTestDiaryEntry(ctx, testDB, userID, "Yesterday's Entry", "Content for yesterday", yesterday)
+	_, err = testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, "Yesterday's Entry", "Content for yesterday", yesterday) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -332,8 +332,8 @@ func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
 	title := "Entry to Delete"
 	content := "This entry will be deleted."
-	
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB, userID, title, content, entryDate)
+
+	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, title, content, entryDate) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}

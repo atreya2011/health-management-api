@@ -2,57 +2,59 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/atreya2011/health-management-api/internal/domain"
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pkg/errors"
 )
 
 // pgBodyRecordRepository implements the domain.BodyRecordRepository interface
 type pgBodyRecordRepository struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	q *db.Queries
 }
 
 // NewPgBodyRecordRepository creates a new PostgreSQL body record repository
 func NewPgBodyRecordRepository(pool *pgxpool.Pool) domain.BodyRecordRepository {
-	adapter := NewPgxAdapter(pool)
 	return &pgBodyRecordRepository{
-		pool: pool,
-		q:    db.New(adapter),
+		q: db.New(pool),
 	}
 }
 
 // Save creates a new body record or updates an existing one based on UserID and Date
 func (r *pgBodyRecordRepository) Save(ctx context.Context, record *domain.BodyRecord) (*domain.BodyRecord, error) {
-	// Convert *float64 to sql.NullString
-	var weightKg sql.NullString
-	var bodyFatPercentage sql.NullString
-	
+	var weightVal, bodyFatVal pgtype.Numeric
+
+	// Convert *float64 to pgtype.Numeric by scanning from string
 	if record.WeightKg != nil {
-		weightKg = sql.NullString{
-			String: fmt.Sprintf("%.2f", *record.WeightKg),
-			Valid:  true,
+		weightStr := fmt.Sprintf("%f", *record.WeightKg)
+		if err := weightVal.Scan(weightStr); err != nil {
+			return nil, errors.Wrapf(err, "failed to scan weight string '%s' into pgtype.Numeric", weightStr)
 		}
+	} else {
+		weightVal = pgtype.Numeric{Valid: false}
 	}
-	
+
 	if record.BodyFatPercentage != nil {
-		bodyFatPercentage = sql.NullString{
-			String: fmt.Sprintf("%.2f", *record.BodyFatPercentage),
-			Valid:  true,
+		bodyFatStr := fmt.Sprintf("%f", *record.BodyFatPercentage)
+		if err := bodyFatVal.Scan(bodyFatStr); err != nil {
+			return nil, errors.Wrapf(err, "failed to scan bodyFat string '%s' into pgtype.Numeric", bodyFatStr)
 		}
+	} else {
+		bodyFatVal = pgtype.Numeric{Valid: false}
 	}
-	
+
+	pgDate := pgtype.Date{Time: record.Date, Valid: true}
+
 	params := db.CreateBodyRecordParams{
 		UserID:            record.UserID,
-		Date:              record.Date,
-		WeightKg:          weightKg,
-		BodyFatPercentage: bodyFatPercentage,
+		Date:              pgDate,
+		WeightKg:          weightVal,
+		BodyFatPercentage: bodyFatVal,
 	}
 
 	dbRecord, err := r.q.CreateBodyRecord(ctx, params)
@@ -86,10 +88,13 @@ func (r *pgBodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUI
 
 // FindByUserAndDateRange retrieves body records for a user within a specific date range
 func (r *pgBodyRecordRepository) FindByUserAndDateRange(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]*domain.BodyRecord, error) {
+	pgStartDate := pgtype.Date{Time: startDate, Valid: true}
+	pgEndDate := pgtype.Date{Time: endDate, Valid: true}
+
 	params := db.ListBodyRecordsByUserDateRangeParams{
 		UserID: userID,
-		Date:   startDate,
-		Date_2: endDate,
+		Date:   pgStartDate,
+		Date_2: pgEndDate,
 	}
 
 	dbRecords, err := r.q.ListBodyRecordsByUserDateRange(ctx, params)
@@ -115,30 +120,38 @@ func (r *pgBodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UU
 	return count, nil
 }
 
-// toDomainBodyRecord converts a db.BodyRecord to a domain.BodyRecord
+// toDomainBodyRecord converts a db.BodyRecord (pgx-based) to a domain.BodyRecord
 func toDomainBodyRecord(dbRecord db.BodyRecord) *domain.BodyRecord {
-	// Convert sql.NullString to *float64
 	var weightKg *float64
 	var bodyFatPercentage *float64
-	
+
 	if dbRecord.WeightKg.Valid {
-		val, err := strconv.ParseFloat(dbRecord.WeightKg.String, 64)
+		w, err := dbRecord.WeightKg.Float64Value()
 		if err == nil {
-			weightKg = &val
+			weightKg = &w.Float64
+		} else {
+			fmt.Printf("Warning: could not scan WeightKg back to float64: %v\n", err)
 		}
 	}
-	
+
 	if dbRecord.BodyFatPercentage.Valid {
-		val, err := strconv.ParseFloat(dbRecord.BodyFatPercentage.String, 64)
+		bf, err := dbRecord.BodyFatPercentage.Float64Value()
 		if err == nil {
-			bodyFatPercentage = &val
+			bodyFatPercentage = &bf.Float64
+		} else {
+			fmt.Printf("Warning: could not scan BodyFatPercentage back to float64: %v\n", err)
 		}
 	}
-	
+
+	var dateVal time.Time
+	if dbRecord.Date.Valid {
+		dateVal = dbRecord.Date.Time
+	}
+
 	return &domain.BodyRecord{
 		ID:                dbRecord.ID,
 		UserID:            dbRecord.UserID,
-		Date:              dbRecord.Date,
+		Date:              dateVal,
 		WeightKg:          weightKg,
 		BodyFatPercentage: bodyFatPercentage,
 		CreatedAt:         dbRecord.CreatedAt,

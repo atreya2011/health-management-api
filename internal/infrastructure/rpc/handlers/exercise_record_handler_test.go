@@ -25,7 +25,7 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -165,12 +165,12 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 	calories1 := int32(250)
 	calories2 := int32(350)
 
-	_, err = testutil.CreateTestExerciseRecord(ctx, testDB, userID, "Running", &duration1, &calories1, today)
+	_, err = testutil.CreateTestExerciseRecord(ctx, testDB.Queries, userID, "Running", &duration1, &calories1, today) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	_, err = testutil.CreateTestExerciseRecord(ctx, testDB, userID, "Weight Training", &duration2, &calories2, yesterday)
+	_, err = testutil.CreateTestExerciseRecord(ctx, testDB.Queries, userID, "Weight Training", &duration2, &calories2, yesterday) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 
 	// Create a test user
 	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB)
+	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
@@ -250,8 +250,8 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	duration := int32(30)
 	calories := int32(250)
-	
-	record, err := testutil.CreateTestExerciseRecord(ctx, testDB, userID, "Record to Delete", &duration, &calories, recordedAt)
+
+	record, err := testutil.CreateTestExerciseRecord(ctx, testDB.Queries, userID, "Record to Delete", &duration, &calories, recordedAt) // Pass testDB.Queries
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}

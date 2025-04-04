@@ -15,16 +15,13 @@ import (
 
 // pgUserRepository implements the domain.UserRepository interface
 type pgUserRepository struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	q *db.Queries
 }
 
 // NewPgUserRepository creates a new PostgreSQL user repository
 func NewPgUserRepository(pool *pgxpool.Pool) domain.UserRepository {
-	adapter := NewPgxAdapter(pool)
 	return &pgUserRepository{
-		pool: pool,
-		q:    db.New(adapter),
+		q: db.New(pool),
 	}
 }
 
@@ -32,19 +29,17 @@ func NewPgUserRepository(pool *pgxpool.Pool) domain.UserRepository {
 func (r *pgUserRepository) Create(ctx context.Context, user *domain.User) error {
 	dbUser, err := r.q.CreateUser(ctx, user.SubjectID)
 	if err != nil {
-		// Check for unique constraint violation
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
 			return fmt.Errorf("user with this subject ID already exists: %w", err)
 		}
 		return fmt.Errorf("failed to create user: %w", err)
 	}
-	
-	// Update the domain user with the generated ID and timestamps
+
 	user.ID = dbUser.ID
 	user.CreatedAt = dbUser.CreatedAt
 	user.UpdatedAt = dbUser.UpdatedAt
-	
+
 	return nil
 }
 
