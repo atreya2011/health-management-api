@@ -15,14 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func TestColumnHandler_ListPublishedColumns(t *testing.T) {
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	ctx := context.Background()
-
+// setupTestColumns creates test columns in the database for testing
+func setupTestColumns(t *testing.T, ctx context.Context, testDB *testutil.TestDatabase) (uuid.UUID, uuid.UUID, uuid.UUID, string, string) {
 	now := time.Now()
 	publishedAt := now.Add(-24 * time.Hour)
 	futureDate := now.Add(24 * time.Hour)
@@ -56,9 +50,25 @@ func TestColumnHandler_ListPublishedColumns(t *testing.T) {
 		t.Fatalf("Failed to create test column: %v", err)
 	}
 
+	return column1ID, column2ID, column3ID, category1, category2
+}
+
+// setupHandler creates a new column handler for testing
+func setupHandler(testDB *testutil.TestDatabase) (*ColumnHandler, context.Context) {
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	ctx := context.Background()
 	repo := testutil.NewColumnRepository(testDB.Pool)
 	service := application.NewColumnService(repo, logger)
 	handler := NewColumnHandler(service, logger)
+	return handler, ctx
+}
+
+func TestColumnHandler_ListPublishedColumns(t *testing.T) {
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	handler, ctx := setupHandler(testDB)
+	setupTestColumns(t, ctx, testDB)
 
 	// Test ListPublishedColumns
 	req := connect.NewRequest(&v1.ListPublishedColumnsRequest{
@@ -80,6 +90,14 @@ func TestColumnHandler_ListPublishedColumns(t *testing.T) {
 	if len(resp.Msg.Columns) != 2 {
 		t.Errorf("Expected 2 columns, got %d", len(resp.Msg.Columns))
 	}
+}
+
+func TestColumnHandler_GetColumn(t *testing.T) {
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	handler, ctx := setupHandler(testDB)
+	column1ID, _, column3ID, _, _ := setupTestColumns(t, ctx, testDB)
 
 	// Test GetColumn with a published column
 	getReq := connect.NewRequest(&v1.GetColumnRequest{
@@ -113,6 +131,25 @@ func TestColumnHandler_ListPublishedColumns(t *testing.T) {
 		t.Error("Expected error for unpublished column, got nil")
 	}
 
+	// Test GetColumn with non-existent ID
+	nonExistentID := uuid.New()
+	nonExistentReq := connect.NewRequest(&v1.GetColumnRequest{
+		Id: nonExistentID.String(),
+	})
+
+	_, err = handler.GetColumn(ctx, nonExistentReq)
+	if err == nil {
+		t.Error("Expected error for non-existent column, got nil")
+	}
+}
+
+func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	handler, ctx := setupHandler(testDB)
+	_, _, _, category1, _ := setupTestColumns(t, ctx, testDB)
+
 	// Test ListColumnsByCategory
 	categoryReq := connect.NewRequest(&v1.ListColumnsByCategoryRequest{
 		Category: category1,
@@ -139,15 +176,59 @@ func TestColumnHandler_ListPublishedColumns(t *testing.T) {
 		t.Errorf("Expected category '%s', got '%v'", category1,
 			categoryResp.Msg.Columns[0].Category)
 	}
+}
 
-	// Test GetColumn with non-existent ID
-	nonExistentID := uuid.New()
-	nonExistentReq := connect.NewRequest(&v1.GetColumnRequest{
-		Id: nonExistentID.String(),
+func TestColumnHandler_ListColumnsByTag(t *testing.T) {
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.TeardownTestDatabase(t)
+
+	handler, ctx := setupHandler(testDB)
+	setupTestColumns(t, ctx, testDB)
+
+	// Test ListColumnsByTag
+	tag := "diet"
+	tagReq := connect.NewRequest(&v1.ListColumnsByTagRequest{
+		Tag: tag,
+		Pagination: &v1.PageRequest{
+			PageSize:   10,
+			PageNumber: 1,
+		},
 	})
 
-	_, err = handler.GetColumn(ctx, nonExistentReq)
-	if err == nil {
-		t.Error("Expected error for non-existent column, got nil")
+	tagResp, err := handler.ListColumnsByTag(ctx, tagReq)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	// We should have 2 published columns with the "diet" tag
+	if tagResp.Msg.Pagination.TotalItems != 2 {
+		t.Errorf("Expected count 2, got %d", tagResp.Msg.Pagination.TotalItems)
+	}
+
+	if len(tagResp.Msg.Columns) != 2 {
+		t.Errorf("Expected 2 columns, got %d", len(tagResp.Msg.Columns))
+	}
+
+	// Test with a tag that doesn't exist
+	nonExistentTag := "nonexistent"
+	nonExistentTagReq := connect.NewRequest(&v1.ListColumnsByTagRequest{
+		Tag: nonExistentTag,
+		Pagination: &v1.PageRequest{
+			PageSize:   10,
+			PageNumber: 1,
+		},
+	})
+
+	nonExistentTagResp, err := handler.ListColumnsByTag(ctx, nonExistentTagReq)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if nonExistentTagResp.Msg.Pagination.TotalItems != 0 {
+		t.Errorf("Expected count 0, got %d", nonExistentTagResp.Msg.Pagination.TotalItems)
+	}
+
+	if len(nonExistentTagResp.Msg.Columns) != 0 {
+		t.Errorf("Expected 0 columns, got %d", len(nonExistentTagResp.Msg.Columns))
 	}
 }
