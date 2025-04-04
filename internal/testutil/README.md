@@ -43,13 +43,22 @@ record, err := testutil.CreateTestBodyRecord(ctx, testDB.DB, userID, time.Now(),
 if err != nil {
     t.Fatalf("Failed to create test body record: %v", err)
 }
+
+// Similar helper functions exist for creating test columns, diary entries,
+// and exercise records. See the respective *_helpers.go files.
 ```
 
 ### Creating a Repository
 
 ```go
-// Create a repository for testing
-repo := testutil.NewBodyRecordRepository(testDB.Pool)
+// Helper functions exist to create repository instances for testing
+// Example: Body Record Repository
+bodyRecordRepo := testutil.NewBodyRecordRepository(testDB.Pool)
+
+// Example: Column Repository
+columnRepo := testutil.NewColumnRepository(testDB.Pool)
+
+// Similar helpers exist for other repositories.
 ```
 
 ## Database Tests

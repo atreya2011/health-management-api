@@ -29,7 +29,7 @@ The project follows a clean architecture approach with DDD principles:
 .
 ├── api/proto/                # Protocol Buffer definitions
 ├── bin/                      # Compiled binaries
-├── cmd/server/               # Application entry point
+├── cmd/                      # Application entry points (serve, seed)
 ├── configs/                  # Configuration files
 ├── db/
 │   ├── migrations/           # SQL migrations
@@ -44,9 +44,7 @@ The project follows a clean architecture approach with DDD principles:
 │   │   ├── persistence/      # Repository implementations
 │   │   └── rpc/              # Connect-RPC handlers and generated code
 │   └── testutil/             # Testing utilities
-└── scripts/                  # Utility scripts
-    ├── generate_token.go     # JWT token generation for testing
-    └── test_body_record_api.sh # API testing script
+└── scripts/                  # Utility scripts (token generation, API tests)
 ```
 
 ## Getting Started
@@ -164,12 +162,12 @@ The project includes utility scripts in the `scripts/` directory:
 
   ```bash
   ./scripts/test_body_record_api.sh
+  ./scripts/test_column_api.sh
+  ./scripts/test_diary_api.sh
+  ./scripts/test_exercise_record_api.sh
   ```
 
-  This script demonstrates how to interact with the API using curl, including:
-  - Creating a new body record
-  - Listing body records (paginated)
-  - Getting body records by date range
+  These scripts demonstrate how to interact with the different API endpoints using curl, including creating, listing, and retrieving records. Examine the scripts for specific examples.
 
 ### Adding New Features
 
@@ -180,7 +178,7 @@ The project includes utility scripts in the `scripts/` directory:
 5. Create application service in `internal/application/`
 6. Define API in Protocol Buffers (`api/proto/`)
 7. Implement Connect-RPC handler in `internal/infrastructure/rpc/handlers/`
-8. Register the handler in `cmd/server/cmd/serve.go`
+8. Register the handler in `cmd/serve.go`
 
 ## Testing
 
@@ -213,8 +211,14 @@ if err != nil {
     t.Fatalf("Failed to create test user: %v", err)
 }
 
-// Create a repository for testing
-repo := testutil.NewBodyRecordRepository(testDB.Pool)
+// Use test helpers to create data and repositories
+// Example: Create a Body Record repository
+bodyRecordRepo := testutil.NewBodyRecordRepository(testDB.Pool) 
+// ... use repo ...
+
+// Example: Create a test Diary Entry
+diaryEntry := testutil.CreateTestDiaryEntry(ctx, t, testDB.Pool, userID)
+// ... use diaryEntry ...
 ```
 
-See `internal/testutil/README.md` for more details on the available test utilities.
+See `internal/testutil/README.md` and the specific helper files (e.g., `body_record_helpers.go`) for more details on the available test utilities.
