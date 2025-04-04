@@ -83,9 +83,9 @@ func (r *pgColumnRepository) FindByCategory(ctx context.Context, category string
 // FindByTag retrieves paginated columns by tag
 func (r *pgColumnRepository) FindByTag(ctx context.Context, tag string, limit, offset int) ([]*domain.Column, error) {
 	params := db.ListColumnsByTagParams{
-		Tags:   []string{tag},
-		Limit:  int32(limit),
-		Offset: int32(offset),
+		Column1: tag,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
 	}
 	dbColumns, err := r.q.ListColumnsByTag(ctx, params)
 	if err != nil {
@@ -121,7 +121,7 @@ func (r *pgColumnRepository) CountByCategory(ctx context.Context, category strin
 
 // CountByTag returns the total number of published columns with a tag
 func (r *pgColumnRepository) CountByTag(ctx context.Context, tag string) (int64, error) {
-	count, err := r.q.CountColumnsByTag(ctx, []string{tag})
+	count, err := r.q.CountColumnsByTag(ctx, tag)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to count columns by tag")
 	}

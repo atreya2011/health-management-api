@@ -17,7 +17,7 @@ LIMIT $2 OFFSET $3; -- For pagination
 
 -- name: ListColumnsByTag :many
 SELECT * FROM columns
-WHERE $1 = ANY(tags) AND published_at IS NOT NULL AND published_at <= CURRENT_TIMESTAMP
+WHERE $1::text = ANY(tags) AND published_at IS NOT NULL AND published_at <= CURRENT_TIMESTAMP
 ORDER BY published_at DESC
 LIMIT $2 OFFSET $3; -- For pagination
 
@@ -31,4 +31,4 @@ WHERE category = $1 AND published_at IS NOT NULL AND published_at <= CURRENT_TIM
 
 -- name: CountColumnsByTag :one
 SELECT COUNT(*) FROM columns
-WHERE $1 = ANY(tags) AND published_at IS NOT NULL AND published_at <= CURRENT_TIMESTAMP;
+WHERE $1::text = ANY(tags) AND published_at IS NOT NULL AND published_at <= CURRENT_TIMESTAMP;

@@ -27,11 +27,22 @@ echo ""
 
 # 1. List published columns
 echo "1. Listing published columns..."
-curl -s -X GET \
+PUBLISHED_COLUMNS_RESPONSE=$(curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Connect-Protocol-Version: 1" \
-  "$BASE_URL/healthapp.v1.ColumnService/ListPublishedColumns" | jq .
+  -d '{"pagination":{"page_size":5,"page_number":1}}' \
+  "$BASE_URL/healthapp.v1.ColumnService/ListPublishedColumns")
+
+echo "$PUBLISHED_COLUMNS_RESPONSE" | jq .
 echo ""
+
+# Extract the first column ID from the response
+COLUMN_ID=$(echo "$PUBLISHED_COLUMNS_RESPONSE" | jq -r '.columns[0].id // empty')
+
+if [ -z "$COLUMN_ID" ]; then
+  echo "Error: No columns found in the response. Cannot proceed with GetColumn test."
+  exit 1
+fi
 
 # 2. List columns by category
 echo "2. Listing columns by category 'health'..."
@@ -51,13 +62,7 @@ curl -s -X POST \
   "$BASE_URL/healthapp.v1.ColumnService/ListColumnsByTag" | jq .
 echo ""
 
-# 4. Get a specific column by ID
-# First, get the ID of the first column from the list
-COLUMN_ID=$(curl -s -X GET \
-  -H "Content-Type: application/json" \
-  -H "Connect-Protocol-Version: 1" \
-  "$BASE_URL/healthapp.v1.ColumnService/ListPublishedColumns" | jq -r '.columns[0].id')
-
+# 4. Get a specific column by ID using the dynamically obtained ID
 echo "4. Getting column by ID: $COLUMN_ID..."
 curl -s -X POST \
   -H "Content-Type: application/json" \
