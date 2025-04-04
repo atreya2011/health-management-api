@@ -47,6 +47,66 @@ The project follows a clean architecture approach with DDD principles:
 └── scripts/                  # Utility scripts (token generation, API tests)
 ```
 
+## Database Schema
+
+The following diagram shows the main tables and their relationships:
+
+```mermaid
+erDiagram
+    users ||--o{ body_records : "has"
+    users ||--o{ exercise_records : "has"
+    users ||--o{ diary_entries : "has"
+
+    users {
+        UUID id PK
+        TEXT subject_id UK "Renamed from auth0_sub in migration 000002"
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    body_records {
+        UUID id PK
+        UUID user_id FK
+        DATE date "Unique per user_id"
+        NUMERIC weight_kg
+        NUMERIC body_fat_percentage
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    exercise_records {
+        UUID id PK
+        UUID user_id FK
+        TEXT exercise_name
+        INTEGER duration_minutes
+        INTEGER calories_burned
+        TIMESTAMPTZ recorded_at
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    diary_entries {
+        UUID id PK
+        UUID user_id FK
+        TEXT title
+        TEXT content
+        DATE entry_date
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    columns {
+        UUID id PK
+        TEXT title
+        TEXT content
+        TEXT category
+        TEXT[] tags
+        TIMESTAMPTZ published_at
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+```
+
 ## Getting Started
 
 ### Prerequisites
