@@ -95,7 +95,7 @@ The project follows a clean architecture approach with DDD principles:
 
    ```bash
    make build
-   ./bin/server serve
+   ./bin/healthapp_server serve
    ```
 
    Or use the make command:
@@ -113,7 +113,7 @@ The application provides a command-line interface with the following commands:
 - `serve`: Start the API server
 
   ```bash
-  ./bin/server serve [flags]
+  ./bin/healthapp_server serve [flags]
   ```
 
   Flags:
@@ -124,7 +124,7 @@ The application provides a command-line interface with the following commands:
 - `seed`: Seed the database with mock data
 
   ```bash
-  ./bin/server seed [flags]
+  ./bin/healthapp_server seed [flags]
   ```
 
   Flags:

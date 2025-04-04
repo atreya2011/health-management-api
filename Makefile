@@ -14,10 +14,6 @@ sqlc: ## Generate Go code from SQL queries using sqlc
 	@echo "Generating sqlc code..."
 	sqlc generate
 
-# migrate-create: NAME?=new_migration ## Create new migration files (e.g., make migrate-create NAME=add_indexes)
-# 	@echo "Creating migration: $(NAME)"
-# 	migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(NAME)
-
 migrate-up: ## Apply all database migrations
 	@echo "Applying migrations..."
 	migrate -database "$(DB_URL)" -path $(MIGRATIONS_DIR) up
