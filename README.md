@@ -180,6 +180,60 @@ The project includes utility scripts in the `scripts/` directory:
 7. Implement Connect-RPC handler in `internal/infrastructure/rpc/handlers/`
 8. Register the handler in `cmd/serve.go`
 
+## TODO
+
+### Features & Enhancements
+- [ ] **Master Data:**
+  - [ ] Implement a master list of exercises (name, description, muscle group, etc.).
+  - [ ] Implement a master list of tags (e.g., for diary entries, exercises).
+  - [ ] Allow associating exercises with tags.
+- [ ] **API Improvements:**
+  - [ ] Add pagination to all list endpoints (body records, exercises, diary, columns).
+  - [ ] Add filtering and sorting capabilities to list endpoints.
+  - [ ] Implement rate limiting for API endpoints.
+  - [ ] Standardize error responses across the API.
+- [ ] **Data Management:**
+  - [ ] Implement soft deletes for user-generated records (body, exercise, diary).
+- [ ] **User Features:**
+  - [ ] Implement user profile management (name, goals, etc.).
+  - [ ] Add goal-setting features (e.g., weight loss target).
+
+### Testing & Quality
+- [ ] **Test Suite:**
+  - [ ] Improve testing speed (parallel execution, optimize setup/teardown).
+  - [ ] Increase test coverage, especially for application services and edge cases.
+- [ ] **Code Quality:**
+  - [ ] Set up linters (e.g., `golangci-lint`) and enforce style guides.
+  - [ ] Add static analysis tools.
+
+### Operations & Infrastructure
+- [ ] **Observability:**
+  - [ ] Add request tracing across services.
+  - [ ] Implement metrics collection (e.g., Prometheus) for monitoring API performance and resource usage.
+  - [ ] Set up alerting based on metrics or logs.
+- [ ] **Deployment:**
+  - [ ] Create Helm charts or Kubernetes manifests for deployment.
+  - [ ] Refine CI/CD pipeline (e.g., add deployment stages).
+- [ ] **Database:**
+  - [ ] Analyze query performance and add necessary database indexes.
+  - [ ] Implement a strategy for database backups and restores.
+
+### Documentation
+- [ ] **API Docs:**
+  - [ ] Generate API documentation (e.g., Swagger/OpenAPI) from Protobuf definitions.
+  - [ ] Add examples to API documentation.
+- [ ] **Project Docs:**
+  - [ ] Expand README sections (e.g., detailed architecture explanation, deployment guide).
+  - [ ] Document configuration options more thoroughly.
+
+### Security
+- [ ] **Input Validation:**
+  - [ ] Add robust input validation at API handlers/service layer.
+- [ ] **Dependencies:**
+  - [ ] Implement dependency scanning (e.g., `govulncheck`, Snyk).
+- [ ] **Secrets Management:**
+  - [ ] Improve handling of secrets (avoid hardcoding, use vault/secrets manager).
+
 ## Testing
 
 The project uses tests that run against a real PostgreSQL database running in a Docker container. These tests provide realistic testing of database interactions and are particularly useful for testing repositories, services, and handlers.
