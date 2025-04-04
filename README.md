@@ -58,52 +58,52 @@ erDiagram
     users ||--o{ diary_entries : "has"
 
     users {
-        UUID id PK
-        TEXT subject_id UK "Renamed from auth0_sub in migration 000002"
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        id UUID PK
+        subject_id TEXT UK "Renamed from auth0_sub in migration 000002"
+        created_at TIMESTAMPTZ
+        updated_at TIMESTAMPTZ
     }
 
     body_records {
-        UUID id PK
-        UUID user_id FK
-        DATE date "Unique per user_id"
-        NUMERIC weight_kg
-        NUMERIC body_fat_percentage
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        id UUID PK
+        user_id UUID FK
+        date DATE "Unique per user_id"
+        weight_kg NUMERIC
+        body_fat_percentage NUMERIC
+        created_at TIMESTAMPTZ
+        updated_at TIMESTAMPTZ
     }
 
     exercise_records {
-        UUID id PK
-        UUID user_id FK
-        TEXT exercise_name
-        INTEGER duration_minutes
-        INTEGER calories_burned
-        TIMESTAMPTZ recorded_at
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        id UUID PK
+        user_id UUID FK
+        exercise_name TEXT
+        duration_minutes INTEGER
+        calories_burned INTEGER
+        recorded_at TIMESTAMPTZ
+        created_at TIMESTAMPTZ
+        updated_at TIMESTAMPTZ
     }
 
     diary_entries {
-        UUID id PK
-        UUID user_id FK
-        TEXT title
-        TEXT content
-        DATE entry_date
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        id UUID PK
+        user_id UUID FK
+        title TEXT
+        content TEXT
+        entry_date DATE
+        created_at TIMESTAMPTZ
+        updated_at TIMESTAMPTZ
     }
 
     columns {
-        UUID id PK
-        TEXT title
-        TEXT content
-        TEXT category
-        TEXT[] tags
-        TIMESTAMPTZ published_at
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        id UUID PK
+        title TEXT
+        content TEXT
+        category TEXT
+        tags TEXT[]
+        published_at TIMESTAMPTZ
+        created_at TIMESTAMPTZ
+        updated_at TIMESTAMPTZ
     }
 ```
 
