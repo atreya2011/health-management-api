@@ -78,11 +78,11 @@ func runServer() {
 	}
 	defer dbPool.Close()
 	logger.Info("Database connection pool established")
-	
+
 	// Check if the database schema is correct
 	schemaCtx, schemaCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer schemaCancel()
-	
+
 	var columnName string
 	err = dbPool.QueryRow(schemaCtx, "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'subject_id'").Scan(&columnName)
 	if err != nil {
@@ -131,11 +131,15 @@ func runServer() {
 	mux := http.NewServeMux()
 
 	// Register Connect handlers
-	mux.Handle(healthappv1connect.NewBodyRecordServiceHandler(bodyRecordHandler, interceptors))
-	mux.Handle(healthappv1connect.NewDiaryServiceHandler(diaryHandler, interceptors))
-	mux.Handle(healthappv1connect.NewExerciseRecordServiceHandler(exerciseRecordHandler, interceptors))
+	bodyRecordHandlerPath, bodyRecordServiceHandler := healthappv1connect.NewBodyRecordServiceHandler(bodyRecordHandler, interceptors)
+	mux.Handle(bodyRecordHandlerPath, bodyRecordServiceHandler)
+	diaryHandlerPath, diaryServiceHandler := healthappv1connect.NewDiaryServiceHandler(diaryHandler, interceptors)
+	mux.Handle(diaryHandlerPath, diaryServiceHandler)
+	exerciseRecordHandlerPath, exerciseRecordServiceHandler := healthappv1connect.NewExerciseRecordServiceHandler(exerciseRecordHandler, interceptors)
+	mux.Handle(exerciseRecordHandlerPath, exerciseRecordServiceHandler)
 	// Column service doesn't require authentication
-	mux.Handle(healthappv1connect.NewColumnServiceHandler(columnHandler))
+	columnHandlerPath, columnServiceHandler := healthappv1connect.NewColumnServiceHandler(columnHandler)
+	mux.Handle(columnHandlerPath, columnServiceHandler)
 
 	// Serve OpenAPI spec
 	mux.Handle("/openapi/", http.StripPrefix("/openapi/", http.FileServer(http.Dir("./third_party/openapi"))))
