@@ -9,7 +9,6 @@ import (
 )
 
 // CreateTestUser creates a test user in the database using sqlc
-// It now takes Queries directly as TestDatabase might not be needed everywhere.
 func CreateTestUser(ctx context.Context, queries *db.Queries) (uuid.UUID, error) {
 	subjectID := fmt.Sprintf("test|%s", uuid.New().String())
 	user, err := queries.CreateUser(ctx, subjectID)

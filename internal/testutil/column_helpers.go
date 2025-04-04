@@ -8,9 +8,8 @@ import (
 
 	"github.com/atreya2011/health-management-api/internal/domain"
 	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
-	// db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db" // Removed unused import
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype" // Added pgtype import
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

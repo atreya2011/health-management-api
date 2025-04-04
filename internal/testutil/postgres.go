@@ -187,17 +187,3 @@ func findMigrationFiles() ([]string, error) {
 
 	return nil, fmt.Errorf("could not find migrations directory")
 }
-
-// CreateTestUser moved to user_helpers.go
-
-// CreateTestBodyRecord moved to body_record_helpers.go
-
-// NewBodyRecordRepository moved to body_record_helpers.go
-
-// CreateTestDiaryEntry moved to diary_entry_helpers.go
-
-// NewDiaryEntryRepository moved to diary_entry_helpers.go
-
-// CreateTestExerciseRecord moved to exercise_record_helpers.go
-
-// NewExerciseRecordRepository moved to exercise_record_helpers.go
