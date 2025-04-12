@@ -377,7 +377,7 @@ func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
 	getReq := connect.NewRequest(&v1.GetDiaryEntryRequest{
 		Id: entryID.String(),
 	})
-	
+
 	_, err = handler.GetDiaryEntry(testCtx, getReq)
 	if err == nil {
 		t.Error("Expected error when getting deleted entry, got nil")
