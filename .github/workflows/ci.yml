@@ -1,4 +1,4 @@
-name: CI
+name: ci
 
 on:
   push:
@@ -20,6 +20,9 @@ jobs:
 
       - name: Configure git for private modules
         run: git config --global url."https://${{ github.token }}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+
+      - name: Download Go Modules
+        run: go mod download && go mod tidy
 
       - name: Install Buf
         uses: bufbuild/buf-setup-action@v1
@@ -78,12 +81,6 @@ jobs:
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
         env:
           HEALTHAPP_DATABASE_URL: postgres://healthapp_user:verysecretpassword@localhost:5432/healthapp_db_test?sslmode=disable
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          file: ./coverage.txt
-          fail_ci_if_error: false
 
   build:
     name: Build
