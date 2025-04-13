@@ -18,12 +18,12 @@ import (
 
 	// App imports
 	// "github.com/atreya2011/health-management-api/internal/application" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
-	applog "github.com/atreya2011/health-management-api/internal/infrastructure/log"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1/healthappv1connect"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/rpc/handlers"
+	"github.com/atreya2011/health-management-api/internal/auth"
+	"github.com/atreya2011/health-management-api/internal/config"
+	applog "github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/persistence/postgres"
+	"github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1/healthappv1connect"
+	"github.com/atreya2011/health-management-api/internal/rpc/handlers"
 )
 
 var (
@@ -122,10 +122,10 @@ func runServer() {
 	)
 
 	// Initialize handlers
-	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordRepo, logger) // Changed from bodyRecordService
-	diaryHandler := handlers.NewDiaryHandler(diaryEntryRepo, logger) // Changed from diaryService
+	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordRepo, logger)             // Changed from bodyRecordService
+	diaryHandler := handlers.NewDiaryHandler(diaryEntryRepo, logger)                       // Changed from diaryService
 	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordRepo, logger) // Changed from exerciseRecordService
-	columnHandler := handlers.NewColumnHandler(columnRepo, logger) // Changed from columnService
+	columnHandler := handlers.NewColumnHandler(columnRepo, logger)                         // Changed from columnService
 
 	// Create router
 	mux := http.NewServeMux()

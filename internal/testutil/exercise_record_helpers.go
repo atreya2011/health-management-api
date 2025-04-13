@@ -6,8 +6,8 @@ import (
 	"time"
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
-	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
+	"github.com/atreya2011/health-management-api/internal/persistence/postgres"
+	db "github.com/atreya2011/health-management-api/internal/persistence/postgres/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,7 +61,7 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 		ExerciseName:    dbRecord.ExerciseName,
 		DurationMinutes: durationMinutesPtr,
 		CaloriesBurned:  caloriesBurnedPtr,
-		RecordedAt:      recordedAtVal,    // Use the time.Time value
+		RecordedAt:      recordedAtVal,      // Use the time.Time value
 		CreatedAt:       dbRecord.CreatedAt, // Already time.Time
 		UpdatedAt:       dbRecord.UpdatedAt, // Already time.Time
 	}, nil

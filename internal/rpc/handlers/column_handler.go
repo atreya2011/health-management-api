@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+
 	// "time" // Removed unused import
 
 	"connectrpc.com/connect"
 	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
-	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
+	"github.com/atreya2011/health-management-api/internal/persistence/postgres" // Added
+	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"

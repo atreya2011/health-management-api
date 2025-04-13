@@ -9,7 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 	// "github.com/atreya2011/health-management-api/internal/application" // Removed
-	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
+	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -298,12 +298,12 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 			PageNumber: 1,
 		},
 	})
-	
+
 	listResp, err := handler.ListExerciseRecords(testCtx, listReq)
 	if err != nil {
 		t.Errorf("Expected no error when listing records, got %v", err)
 	}
-	
+
 	if len(listResp.Msg.ExerciseRecords) != 0 {
 		t.Errorf("Expected 0 records after deletion, got %d", len(listResp.Msg.ExerciseRecords))
 	}

@@ -10,9 +10,9 @@ import (
 	"connectrpc.com/connect"
 	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
-	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
+	"github.com/atreya2011/health-management-api/internal/auth"
+	"github.com/atreya2011/health-management-api/internal/persistence/postgres" // Added
+	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -106,7 +106,7 @@ func (h *BodyRecordHandler) ListBodyRecords(ctx context.Context, req *connect.Re
 	}
 
 	// Get pagination parameters & apply defaults (moved from service)
-	pageSize := 20 // Default page size
+	pageSize := 20  // Default page size
 	pageNumber := 1 // Default page number
 
 	if req.Msg.Pagination != nil {

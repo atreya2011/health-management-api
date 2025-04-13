@@ -8,9 +8,9 @@ import (
 	"github.com/spf13/cobra"
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
-	applog "github.com/atreya2011/health-management-api/internal/infrastructure/log"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
+	"github.com/atreya2011/health-management-api/internal/config"
+	applog "github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/persistence/postgres"
 	"github.com/atreya2011/health-management-api/internal/testutil" // Added import
 )
 

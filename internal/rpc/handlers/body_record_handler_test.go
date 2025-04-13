@@ -9,8 +9,8 @@ import (
 
 	"connectrpc.com/connect"
 	// "github.com/atreya2011/health-management-api/internal/application" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
-	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
+	"github.com/atreya2011/health-management-api/internal/auth"
+	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/wrapperspb"

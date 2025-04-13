@@ -7,7 +7,7 @@ import (
 	"time"
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
+	"github.com/atreya2011/health-management-api/internal/persistence/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,11 +42,11 @@ func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, tit
 		nowUTC,         // Pass time.Time (UTC) for created_at
 		nowUTC,         // Pass time.Time (UTC) for updated_at
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("could not create test column: %w", err)
 	}
-	
+
 	return nil
 }
 

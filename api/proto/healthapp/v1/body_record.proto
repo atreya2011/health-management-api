@@ -6,7 +6,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto"; // For optional fields
 import "healthapp/v1/common.proto";
 
-option go_package = "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1;healthappv1";
+option go_package = "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1;healthappv1";
 
 message BodyRecord {
   string                      id      = 1;  // UUID string

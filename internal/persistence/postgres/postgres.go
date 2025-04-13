@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
+	"github.com/atreya2011/health-management-api/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

@@ -8,7 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
+	"github.com/atreya2011/health-management-api/internal/persistence/postgres" // Added
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
