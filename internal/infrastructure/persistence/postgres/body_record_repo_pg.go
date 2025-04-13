@@ -2,38 +2,79 @@ package postgres
 
 import (
 	"context"
+	"errors" // Use standard errors package
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
+	// "github.com/pkg/errors" // Removed, use fmt.Errorf with %w
 )
 
-// pgBodyRecordRepository implements the domain.BodyRecordRepository interface
-type pgBodyRecordRepository struct {
+// BodyRecord represents a body composition record for a user (Moved from domain)
+type BodyRecord struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Date              time.Time // Store as time.Time (YYYY-MM-DD 00:00:00 UTC)
+	WeightKg          *float64
+	BodyFatPercentage *float64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+// Validate performs validation on the body record (Moved from domain)
+func (br *BodyRecord) Validate() error {
+	// Validate weight (if provided)
+	if br.WeightKg != nil {
+		weight := *br.WeightKg
+		if weight <= 0 {
+			return errors.New("weight must be positive")
+		}
+		if weight > 500 {
+			return errors.New("weight exceeds maximum allowed value")
+		}
+	}
+
+	// Validate body fat percentage (if provided)
+	if br.BodyFatPercentage != nil {
+		bodyFat := *br.BodyFatPercentage
+		if bodyFat < 0 {
+			return errors.New("body fat percentage cannot be negative")
+		}
+		if bodyFat > 100 {
+			return errors.New("body fat percentage cannot exceed 100%")
+		}
+	}
+
+	return nil
+}
+
+// PgBodyRecordRepository provides database operations for BodyRecord (Exported)
+type PgBodyRecordRepository struct { // Renamed to export
 	q *db.Queries
 }
 
 // NewPgBodyRecordRepository creates a new PostgreSQL body record repository
-func NewPgBodyRecordRepository(pool *pgxpool.Pool) domain.BodyRecordRepository {
-	return &pgBodyRecordRepository{
+func NewPgBodyRecordRepository(pool *pgxpool.Pool) *PgBodyRecordRepository { // Return exported type
+	return &PgBodyRecordRepository{ // Use exported type
 		q: db.New(pool),
 	}
 }
 
 // Save creates a new body record or updates an existing one based on UserID and Date
-func (r *pgBodyRecordRepository) Save(ctx context.Context, record *domain.BodyRecord) (*domain.BodyRecord, error) {
+func (r *PgBodyRecordRepository) Save(ctx context.Context, record *BodyRecord) (*BodyRecord, error) { // Use local BodyRecord
 	var weightVal, bodyFatVal pgtype.Numeric
 
 	// Convert *float64 to pgtype.Numeric by scanning from string
+	// Note: Validation should happen before calling Save, moved to handler
 	if record.WeightKg != nil {
 		weightStr := fmt.Sprintf("%f", *record.WeightKg)
 		if err := weightVal.Scan(weightStr); err != nil {
-			return nil, errors.Wrapf(err, "failed to scan weight string '%s' into pgtype.Numeric", weightStr)
+			// Use fmt.Errorf with %w
+			return nil, fmt.Errorf("failed to scan weight string '%s' into pgtype.Numeric: %w", weightStr, err)
 		}
 	} else {
 		weightVal = pgtype.Numeric{Valid: false}
@@ -42,7 +83,8 @@ func (r *pgBodyRecordRepository) Save(ctx context.Context, record *domain.BodyRe
 	if record.BodyFatPercentage != nil {
 		bodyFatStr := fmt.Sprintf("%f", *record.BodyFatPercentage)
 		if err := bodyFatVal.Scan(bodyFatStr); err != nil {
-			return nil, errors.Wrapf(err, "failed to scan bodyFat string '%s' into pgtype.Numeric", bodyFatStr)
+			// Use fmt.Errorf with %w
+			return nil, fmt.Errorf("failed to scan bodyFat string '%s' into pgtype.Numeric: %w", bodyFatStr, err)
 		}
 	} else {
 		bodyFatVal = pgtype.Numeric{Valid: false}
@@ -62,11 +104,11 @@ func (r *pgBodyRecordRepository) Save(ctx context.Context, record *domain.BodyRe
 		return nil, fmt.Errorf("failed to save body record: %w", err)
 	}
 
-	return toDomainBodyRecord(dbRecord), nil
+	return toLocalBodyRecord(dbRecord), nil // Use local conversion func
 }
 
 // FindByUser retrieves paginated body records for a user
-func (r *pgBodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*domain.BodyRecord, error) {
+func (r *PgBodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*BodyRecord, error) { // Use local BodyRecord slice
 	params := db.ListBodyRecordsByUserParams{
 		UserID: userID,
 		Limit:  int32(limit),
@@ -78,16 +120,16 @@ func (r *pgBodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUI
 		return nil, fmt.Errorf("failed to list body records: %w", err)
 	}
 
-	records := make([]*domain.BodyRecord, len(dbRecords))
+	records := make([]*BodyRecord, len(dbRecords)) // Use local BodyRecord slice
 	for i, dbRecord := range dbRecords {
-		records[i] = toDomainBodyRecord(dbRecord)
+		records[i] = toLocalBodyRecord(dbRecord) // Use local conversion func
 	}
 
 	return records, nil
 }
 
 // FindByUserAndDateRange retrieves body records for a user within a specific date range
-func (r *pgBodyRecordRepository) FindByUserAndDateRange(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]*domain.BodyRecord, error) {
+func (r *PgBodyRecordRepository) FindByUserAndDateRange(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]*BodyRecord, error) { // Use local BodyRecord slice
 	pgStartDate := pgtype.Date{Time: startDate, Valid: true}
 	pgEndDate := pgtype.Date{Time: endDate, Valid: true}
 
@@ -102,16 +144,16 @@ func (r *pgBodyRecordRepository) FindByUserAndDateRange(ctx context.Context, use
 		return nil, fmt.Errorf("failed to list body records by date range: %w", err)
 	}
 
-	records := make([]*domain.BodyRecord, len(dbRecords))
+	records := make([]*BodyRecord, len(dbRecords)) // Use local BodyRecord slice
 	for i, dbRecord := range dbRecords {
-		records[i] = toDomainBodyRecord(dbRecord)
+		records[i] = toLocalBodyRecord(dbRecord) // Use local conversion func
 	}
 
 	return records, nil
 }
 
 // CountByUser returns the total number of body records for a user
-func (r *pgBodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (r *PgBodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	count, err := r.q.CountBodyRecordsByUser(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count body records: %w", err)
@@ -120,8 +162,8 @@ func (r *pgBodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UU
 	return count, nil
 }
 
-// toDomainBodyRecord converts a db.BodyRecord (pgx-based) to a domain.BodyRecord
-func toDomainBodyRecord(dbRecord db.BodyRecord) *domain.BodyRecord {
+// toLocalBodyRecord converts a db.BodyRecord (sqlc-generated) to a local BodyRecord
+func toLocalBodyRecord(dbRecord db.BodyRecord) *BodyRecord { // Return local BodyRecord
 	var weightKg *float64
 	var bodyFatPercentage *float64
 
@@ -148,7 +190,7 @@ func toDomainBodyRecord(dbRecord db.BodyRecord) *domain.BodyRecord {
 		dateVal = dbRecord.Date.Time
 	}
 
-	return &domain.BodyRecord{
+	return &BodyRecord{ // Use local BodyRecord
 		ID:                dbRecord.ID,
 		UserID:            dbRecord.UserID,
 		Date:              dateVal,

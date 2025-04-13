@@ -8,26 +8,27 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
+	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// ExerciseRecordHandler implements the exercise record service
+// ExerciseRecordHandler implements the exercise record service RPCs
 type ExerciseRecordHandler struct {
-	exerciseApp application.ExerciseRecordService
-	log         *slog.Logger
+	repo *postgres.PgExerciseRecordRepository // Use concrete repository type
+	log  *slog.Logger
 }
 
 // NewExerciseRecordHandler creates a new exercise record handler
-func NewExerciseRecordHandler(exerciseApp application.ExerciseRecordService, log *slog.Logger) *ExerciseRecordHandler {
+func NewExerciseRecordHandler(repo *postgres.PgExerciseRecordRepository, log *slog.Logger) *ExerciseRecordHandler { // Use concrete repository type
 	return &ExerciseRecordHandler{
-		exerciseApp: exerciseApp,
-		log:         log,
+		repo: repo,
+		log:  log,
 	}
 }
 
@@ -62,16 +63,34 @@ func (h *ExerciseRecordHandler) CreateExerciseRecord(ctx context.Context, req *c
 		caloriesBurned = &c
 	}
 
-	// Call application service
+	// Construct persistence object (was domain object)
+	record := &postgres.ExerciseRecord{ // Use postgres.ExerciseRecord
+		ID:              uuid.New(), // Generate ID here
+		UserID:          userID,
+		ExerciseName:    req.Msg.ExerciseName,
+		DurationMinutes: durationMinutes,
+		CaloriesBurned:  caloriesBurned,
+		RecordedAt:      recordedAt,
+		CreatedAt:       time.Now(), // Set timestamp here
+		UpdatedAt:       time.Now(), // Set timestamp here
+	}
+
+	// Validate the record (moved from service)
+	if err := record.Validate(); err != nil {
+		h.log.WarnContext(ctx, "Validation failed for exercise record", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid exercise record data: %w", err))
+	}
+
+	// Call repository directly
 	h.log.InfoContext(ctx, "Creating exercise record", "userID", userID, "exerciseName", req.Msg.ExerciseName)
-	record, err := h.exerciseApp.CreateExerciseRecord(ctx, userID, req.Msg.ExerciseName, durationMinutes, caloriesBurned, recordedAt)
+	savedRecord, err := h.repo.Create(ctx, record) // Changed from exerciseApp.CreateExerciseRecord
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to create exercise record", "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create exercise record"))
 	}
 
-	// Convert domain model to protobuf message
-	protoRecord := toProtoExerciseRecord(record)
+	// Convert persistence model to protobuf message
+	protoRecord := toProtoExerciseRecord(savedRecord) // Use savedRecord (now *postgres.ExerciseRecord)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateExerciseRecordResponse{
@@ -102,19 +121,37 @@ func (h *ExerciseRecordHandler) ListExerciseRecords(ctx context.Context, req *co
 			pageNumber = int(req.Msg.Pagination.PageNumber)
 		}
 	}
-
-	// Call application service
-	h.log.InfoContext(ctx, "Listing exercise records", "userID", userID, "pageSize", pageSize, "pageNumber", pageNumber)
-	records, total, err := h.exerciseApp.ListExerciseRecords(ctx, userID, pageNumber, pageSize)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to list exercise records", "userID", userID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list exercise records"))
+	// Ensure page is at least 1 (from service)
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	// Apply max page size (from service)
+	if pageSize > 100 {
+		pageSize = 100
 	}
 
-	// Convert domain models to protobuf messages
-	protoRecords := make([]*v1.ExerciseRecord, len(records))
+	// Calculate offset (from service)
+	offset := (pageNumber - 1) * pageSize
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching exercise records for user", "userID", userID, "page", pageNumber, "pageSize", pageSize)
+	records, err := h.repo.FindByUser(ctx, userID, pageSize, offset) // Changed from exerciseApp.ListExerciseRecords
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to fetch exercise records", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch exercise records"))
+	}
+
+	// Get total count (from service)
+	total, err := h.repo.CountByUser(ctx, userID)
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to count exercise records", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count exercise records"))
+	}
+
+	// Convert persistence models to protobuf messages
+	protoRecords := make([]*v1.ExerciseRecord, len(records)) // records is now []*postgres.ExerciseRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoExerciseRecord(record)
+		protoRecords[i] = toProtoExerciseRecord(record) // Pass *postgres.ExerciseRecord
 	}
 
 	// Calculate pagination response
@@ -152,14 +189,15 @@ func (h *ExerciseRecordHandler) DeleteExerciseRecord(ctx context.Context, req *c
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid record ID: %w", err))
 	}
 
-	// Call application service
+	// Call repository directly
 	h.log.InfoContext(ctx, "Deleting exercise record", "recordID", recordID, "userID", userID)
-	err = h.exerciseApp.DeleteExerciseRecord(ctx, recordID, userID)
+	err = h.repo.Delete(ctx, recordID, userID) // Changed from exerciseApp.DeleteExerciseRecord
 	if err != nil {
-		if errors.Is(err, domain.ErrExerciseRecordNotFound) {
-			h.log.WarnContext(ctx, "Exercise record not found for deletion", "recordID", recordID, "userID", userID)
-			return nil, connect.NewError(connect.CodeNotFound, errors.New("exercise record not found"))
-		}
+		// Note: Delete doesn't return ErrExerciseRecordNotFound in the repo implementation currently
+		// if errors.Is(err, postgres.ErrExerciseRecordNotFound) { // Use postgres error
+		// 	h.log.WarnContext(ctx, "Exercise record not found for deletion", "recordID", recordID, "userID", userID)
+		// 	return nil, connect.NewError(connect.CodeNotFound, errors.New("exercise record not found"))
+		// }
 		h.log.ErrorContext(ctx, "Failed to delete exercise record", "recordID", recordID, "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to delete exercise record"))
 	}
@@ -172,8 +210,8 @@ func (h *ExerciseRecordHandler) DeleteExerciseRecord(ctx context.Context, req *c
 	return res, nil
 }
 
-// toProtoExerciseRecord converts a domain.ExerciseRecord to a v1.ExerciseRecord
-func toProtoExerciseRecord(record *domain.ExerciseRecord) *v1.ExerciseRecord {
+// toProtoExerciseRecord converts a postgres.ExerciseRecord to a v1.ExerciseRecord
+func toProtoExerciseRecord(record *postgres.ExerciseRecord) *v1.ExerciseRecord { // Accept *postgres.ExerciseRecord
 	protoRecord := &v1.ExerciseRecord{
 		Id:           record.ID.String(),
 		UserId:       record.UserID.String(),

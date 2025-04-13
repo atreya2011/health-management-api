@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
@@ -15,7 +15,7 @@ import (
 
 // CreateTestExerciseRecord creates a test exercise record in the database using sqlc
 // Takes Queries directly.
-func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (*domain.ExerciseRecord, error) {
+func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (*postgres.ExerciseRecord, error) { // Return postgres.ExerciseRecord
 	var durationMinutesVal, caloriesBurnedVal pgtype.Int4 // Use pgtype.Int4 for INTEGER
 
 	if durationMinutes != nil {
@@ -55,7 +55,7 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 
 	recordedAtVal := dbRecord.RecordedAt // No conversion needed
 
-	return &domain.ExerciseRecord{
+	return &postgres.ExerciseRecord{ // Return postgres.ExerciseRecord
 		ID:              dbRecord.ID,
 		UserID:          dbRecord.UserID,
 		ExerciseName:    dbRecord.ExerciseName,
@@ -68,6 +68,6 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 }
 
 // NewExerciseRecordRepository creates a new exercise record repository for testing
-func NewExerciseRecordRepository(pool *pgxpool.Pool) domain.ExerciseRecordRepository {
+func NewExerciseRecordRepository(pool *pgxpool.Pool) *postgres.PgExerciseRecordRepository { // Return concrete type
 	return postgres.NewPgExerciseRecordRepository(pool)
 }

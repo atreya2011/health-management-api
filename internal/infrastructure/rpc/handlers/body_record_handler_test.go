@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
@@ -45,12 +45,12 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	service := application.NewBodyRecordService(repo, logger)
+	// service := application.NewBodyRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewBodyRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewBodyRecordHandler(repo, logger) // Changed from service
 
 	// Test data
 	date := time.Now().UTC().Truncate(24 * time.Hour)
@@ -109,12 +109,12 @@ func TestBodyRecordHandler_CreateBodyRecord_Error(t *testing.T) {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	service := application.NewBodyRecordService(repo, logger)
+	// service := application.NewBodyRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewBodyRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewBodyRecordHandler(repo, logger) // Changed from service
 
 	// Test data - invalid weight to trigger validation error
 	date := time.Now().UTC().Truncate(24 * time.Hour)
@@ -179,12 +179,12 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	service := application.NewBodyRecordService(repo, logger)
+	// service := application.NewBodyRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewBodyRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewBodyRecordHandler(repo, logger) // Changed from service
 
 	// Test parameters
 	pageSize := int32(10)
@@ -275,12 +275,12 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	service := application.NewBodyRecordService(repo, logger)
+	// service := application.NewBodyRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewBodyRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewBodyRecordHandler(repo, logger) // Changed from service
 
 	// Test date range (last 3 days)
 	startDate := today.Add(-3 * 24 * time.Hour)

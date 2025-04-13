@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -14,7 +14,7 @@ import (
 )
 
 // NewColumnRepository creates a new column repository for testing
-func NewColumnRepository(pool *pgxpool.Pool) domain.ColumnRepository {
+func NewColumnRepository(pool *pgxpool.Pool) *postgres.PgColumnRepository { // Return concrete type
 	return postgres.NewPgColumnRepository(pool)
 }
 
@@ -60,7 +60,7 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	// Define mock columns
-	columns := []*domain.Column{
+	columns := []*postgres.Column{ // Use postgres.Column
 		{
 			ID:      uuid.New(),
 			Title:   "Health Tips for Daily Life",

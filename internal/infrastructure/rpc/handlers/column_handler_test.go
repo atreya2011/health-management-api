@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"github.com/google/uuid"
@@ -58,8 +58,8 @@ func setupHandler(testDB *testutil.TestDatabase) (*ColumnHandler, context.Contex
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx := context.Background()
 	repo := testutil.NewColumnRepository(testDB.Pool)
-	service := application.NewColumnService(repo, logger)
-	handler := NewColumnHandler(service, logger)
+	// service := application.NewColumnService(repo, logger) // Removed
+	handler := NewColumnHandler(repo, logger) // Changed from service
 	return handler, ctx
 }
 

@@ -8,26 +8,27 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
+	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// DiaryHandler implements the diary service
+// DiaryHandler implements the diary service RPCs
 type DiaryHandler struct {
-	diaryApp application.DiaryService
-	log      *slog.Logger
+	repo *postgres.PgDiaryEntryRepository // Use concrete repository type
+	log  *slog.Logger
 }
 
 // NewDiaryHandler creates a new diary handler
-func NewDiaryHandler(diaryApp application.DiaryService, log *slog.Logger) *DiaryHandler {
+func NewDiaryHandler(repo *postgres.PgDiaryEntryRepository, log *slog.Logger) *DiaryHandler { // Use concrete repository type
 	return &DiaryHandler{
-		diaryApp: diaryApp,
-		log:      log,
+		repo: repo,
+		log:  log,
 	}
 }
 
@@ -54,16 +55,33 @@ func (h *DiaryHandler) CreateDiaryEntry(ctx context.Context, req *connect.Reques
 		title = &t
 	}
 
-	// Call application service
+	// Construct persistence object (was domain object)
+	entry := &postgres.DiaryEntry{ // Use postgres.DiaryEntry
+		ID:        uuid.New(), // Generate ID here
+		UserID:    userID,
+		Title:     title,
+		Content:   req.Msg.Content,
+		EntryDate: entryDate,
+		CreatedAt: time.Now(), // Set timestamp here
+		UpdatedAt: time.Now(), // Set timestamp here
+	}
+
+	// Validate the entry (moved from service)
+	if err := entry.Validate(); err != nil {
+		h.log.WarnContext(ctx, "Validation failed for diary entry", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid diary entry data: %w", err))
+	}
+
+	// Call repository directly
 	h.log.InfoContext(ctx, "Creating diary entry", "userID", userID, "entryDate", entryDate)
-	entry, err := h.diaryApp.CreateDiaryEntry(ctx, userID, title, req.Msg.Content, entryDate)
+	savedEntry, err := h.repo.Create(ctx, entry) // Changed from diaryApp.CreateDiaryEntry
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to create diary entry", "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create diary entry"))
 	}
 
-	// Convert domain model to protobuf message
-	protoEntry := toProtoDiaryEntry(entry)
+	// Convert persistence model to protobuf message
+	protoEntry := toProtoDiaryEntry(savedEntry) // Use savedEntry (now *postgres.DiaryEntry)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateDiaryEntryResponse{
@@ -96,20 +114,43 @@ func (h *DiaryHandler) UpdateDiaryEntry(ctx context.Context, req *connect.Reques
 		title = &t
 	}
 
-	// Call application service
-	h.log.InfoContext(ctx, "Updating diary entry", "entryID", entryID, "userID", userID)
-	entry, err := h.diaryApp.UpdateDiaryEntry(ctx, entryID, userID, title, req.Msg.Content)
+	// First, check if the entry exists and belongs to the user (moved from service)
+	existingEntry, err := h.repo.FindByID(ctx, entryID, userID) // existingEntry is now *postgres.DiaryEntry
 	if err != nil {
-		if errors.Is(err, domain.ErrDiaryEntryNotFound) {
-			h.log.WarnContext(ctx, "Diary entry not found", "entryID", entryID, "userID", userID)
+		if errors.Is(err, postgres.ErrDiaryEntryNotFound) { // Use postgres error
+			h.log.WarnContext(ctx, "Diary entry not found for update", "id", entryID, "userID", userID)
+			return nil, connect.NewError(connect.CodeNotFound, postgres.ErrDiaryEntryNotFound) // Return specific error
+		}
+		h.log.ErrorContext(ctx, "Failed to fetch diary entry for update", "id", entryID, "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch diary entry for update"))
+	}
+
+	// Update the entry fields (moved from service)
+	existingEntry.Title = title
+	existingEntry.Content = req.Msg.Content
+	existingEntry.UpdatedAt = time.Now() // Set timestamp here
+
+	// Validate the updated entry (moved from service)
+	if err := existingEntry.Validate(); err != nil {
+		h.log.WarnContext(ctx, "Validation failed for updated diary entry", "id", entryID, "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid diary entry data: %w", err))
+	}
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Updating diary entry", "entryID", entryID, "userID", userID)
+	updatedEntry, err := h.repo.Update(ctx, existingEntry) // Changed from diaryApp.UpdateDiaryEntry
+	if err != nil {
+		// Note: Update might also return ErrDiaryEntryNotFound if ID changed or deleted concurrently
+		if errors.Is(err, postgres.ErrDiaryEntryNotFound) { // Use postgres error
+			h.log.WarnContext(ctx, "Diary entry not found during update", "entryID", entryID, "userID", userID)
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
 		}
 		h.log.ErrorContext(ctx, "Failed to update diary entry", "entryID", entryID, "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to update diary entry"))
 	}
 
-	// Convert domain model to protobuf message
-	protoEntry := toProtoDiaryEntry(entry)
+	// Convert persistence model to protobuf message
+	protoEntry := toProtoDiaryEntry(updatedEntry) // Use updatedEntry (now *postgres.DiaryEntry)
 
 	// Create response
 	res := connect.NewResponse(&v1.UpdateDiaryEntryResponse{
@@ -140,19 +181,37 @@ func (h *DiaryHandler) ListDiaryEntries(ctx context.Context, req *connect.Reques
 			pageNumber = int(req.Msg.Pagination.PageNumber)
 		}
 	}
-
-	// Call application service
-	h.log.InfoContext(ctx, "Listing diary entries", "userID", userID, "pageSize", pageSize, "pageNumber", pageNumber)
-	entries, total, err := h.diaryApp.ListDiaryEntries(ctx, userID, pageNumber, pageSize)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to list diary entries", "userID", userID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list diary entries"))
+	// Ensure page is at least 1 (from service)
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	// Apply max page size (from service)
+	if pageSize > 100 {
+		pageSize = 100
 	}
 
-	// Convert domain models to protobuf messages
-	protoEntries := make([]*v1.DiaryEntry, len(entries))
+	// Calculate offset (from service)
+	offset := (pageNumber - 1) * pageSize
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching diary entries for user", "userID", userID, "page", pageNumber, "pageSize", pageSize)
+	entries, err := h.repo.FindByUser(ctx, userID, pageSize, offset) // Changed from diaryApp.ListDiaryEntries
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to fetch diary entries", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch diary entries"))
+	}
+
+	// Get total count (from service)
+	total, err := h.repo.CountByUser(ctx, userID)
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to count diary entries", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count diary entries"))
+	}
+
+	// Convert persistence models to protobuf messages
+	protoEntries := make([]*v1.DiaryEntry, len(entries)) // entries is now []*postgres.DiaryEntry
 	for i, entry := range entries {
-		protoEntries[i] = toProtoDiaryEntry(entry)
+		protoEntries[i] = toProtoDiaryEntry(entry) // Pass *postgres.DiaryEntry
 	}
 
 	// Calculate pagination response
@@ -190,20 +249,20 @@ func (h *DiaryHandler) GetDiaryEntry(ctx context.Context, req *connect.Request[v
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid entry ID: %w", err))
 	}
 
-	// Call application service
-	h.log.InfoContext(ctx, "Getting diary entry", "entryID", entryID, "userID", userID)
-	entry, err := h.diaryApp.GetDiaryEntry(ctx, entryID, userID)
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching diary entry", "entryID", entryID, "userID", userID)
+	entry, err := h.repo.FindByID(ctx, entryID, userID) // Changed from diaryApp.GetDiaryEntry
 	if err != nil {
-		if errors.Is(err, domain.ErrDiaryEntryNotFound) {
+		if errors.Is(err, postgres.ErrDiaryEntryNotFound) { // Use postgres error
 			h.log.WarnContext(ctx, "Diary entry not found", "entryID", entryID, "userID", userID)
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
 		}
-		h.log.ErrorContext(ctx, "Failed to get diary entry", "entryID", entryID, "userID", userID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to get diary entry"))
+		h.log.ErrorContext(ctx, "Failed to fetch diary entry", "entryID", entryID, "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch diary entry"))
 	}
 
-	// Convert domain model to protobuf message
-	protoEntry := toProtoDiaryEntry(entry)
+	// Convert persistence model to protobuf message
+	protoEntry := toProtoDiaryEntry(entry) // entry is now *postgres.DiaryEntry
 
 	// Create response
 	res := connect.NewResponse(&v1.GetDiaryEntryResponse{
@@ -229,14 +288,15 @@ func (h *DiaryHandler) DeleteDiaryEntry(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid entry ID: %w", err))
 	}
 
-	// Call application service
+	// Call repository directly
 	h.log.InfoContext(ctx, "Deleting diary entry", "entryID", entryID, "userID", userID)
-	err = h.diaryApp.DeleteDiaryEntry(ctx, entryID, userID)
+	err = h.repo.Delete(ctx, entryID, userID) // Changed from diaryApp.DeleteDiaryEntry
 	if err != nil {
-		if errors.Is(err, domain.ErrDiaryEntryNotFound) {
-			h.log.WarnContext(ctx, "Diary entry not found for deletion", "entryID", entryID, "userID", userID)
-			return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
-		}
+		// Note: Delete doesn't return ErrDiaryEntryNotFound in the repo implementation currently
+		// if errors.Is(err, postgres.ErrDiaryEntryNotFound) {
+		// 	h.log.WarnContext(ctx, "Diary entry not found for deletion", "entryID", entryID, "userID", userID)
+		// 	return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
+		// }
 		h.log.ErrorContext(ctx, "Failed to delete diary entry", "entryID", entryID, "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to delete diary entry"))
 	}
@@ -249,8 +309,8 @@ func (h *DiaryHandler) DeleteDiaryEntry(ctx context.Context, req *connect.Reques
 	return res, nil
 }
 
-// toProtoDiaryEntry converts a domain.DiaryEntry to a v1.DiaryEntry
-func toProtoDiaryEntry(entry *domain.DiaryEntry) *v1.DiaryEntry {
+// toProtoDiaryEntry converts a postgres.DiaryEntry to a v1.DiaryEntry
+func toProtoDiaryEntry(entry *postgres.DiaryEntry) *v1.DiaryEntry { // Accept *postgres.DiaryEntry
 	protoEntry := &v1.DiaryEntry{
 		Id:        entry.ID.String(),
 		UserId:    entry.UserID.String(),

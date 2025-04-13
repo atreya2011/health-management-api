@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
+	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -24,7 +25,7 @@ type JWTConfig struct {
 }
 
 // AuthInterceptor creates a Connect interceptor for JWT authentication
-func AuthInterceptor(jwtConfig *JWTConfig, userRepo domain.UserRepository, logger *slog.Logger) connect.UnaryInterceptorFunc {
+func AuthInterceptor(jwtConfig *JWTConfig, userRepo *postgres.PgUserRepository, logger *slog.Logger) connect.UnaryInterceptorFunc { // Use concrete repo type
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 			// Skip auth for public endpoints (if any)
@@ -80,9 +81,9 @@ func AuthInterceptor(jwtConfig *JWTConfig, userRepo domain.UserRepository, logge
 			// Find or create the user
 			user, err := userRepo.FindBySubjectID(ctx, sub)
 			if err != nil {
-				if errors.Is(err, domain.ErrUserNotFound) {
+				if errors.Is(err, postgres.ErrUserNotFound) { // Use postgres error
 					// Create a new user
-					newUser := &domain.User{
+					newUser := &postgres.User{ // Use postgres.User
 						SubjectID: sub,
 					}
 					if err := userRepo.Create(ctx, newUser); err != nil {

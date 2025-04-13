@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,12 +30,12 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	service := application.NewExerciseRecordService(repo, logger)
+	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewExerciseRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
 
 	// Test data
 	recordedAt := time.Now().UTC()
@@ -102,12 +102,12 @@ func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	service := application.NewExerciseRecordService(repo, logger)
+	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewExerciseRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
 
 	// Test data - invalid duration to trigger validation error
 	recordedAt := time.Now().UTC()
@@ -175,12 +175,12 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	service := application.NewExerciseRecordService(repo, logger)
+	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewExerciseRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
 
 	// Test parameters
 	pageSize := int32(10)
@@ -256,12 +256,12 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	service := application.NewExerciseRecordService(repo, logger)
+	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewExerciseRecordHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
 
 	// Create a request
 	req := connect.NewRequest(&v1.DeleteExerciseRecordRequest{

@@ -17,7 +17,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	// App imports
-	"github.com/atreya2011/health-management-api/internal/application"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
 	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
 	applog "github.com/atreya2011/health-management-api/internal/infrastructure/log"
@@ -104,10 +104,10 @@ func runServer() {
 	columnRepo := postgres.NewPgColumnRepository(dbPool)
 
 	// Initialize application services
-	bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger)
-	diaryService := application.NewDiaryService(diaryEntryRepo, logger)
-	exerciseRecordService := application.NewExerciseRecordService(exerciseRecordRepo, logger)
-	columnService := application.NewColumnService(columnRepo, logger)
+	// bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger) // Removed
+	// diaryService := application.NewDiaryService(diaryEntryRepo, logger) // Removed
+	// exerciseRecordService := application.NewExerciseRecordService(exerciseRecordRepo, logger) // Removed
+	// columnService := application.NewColumnService(columnRepo, logger) // Removed
 
 	// Initialize auth interceptor
 	jwtConfig := &auth.JWTConfig{
@@ -122,10 +122,10 @@ func runServer() {
 	)
 
 	// Initialize handlers
-	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordService, logger)
-	diaryHandler := handlers.NewDiaryHandler(diaryService, logger)
-	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordService, logger)
-	columnHandler := handlers.NewColumnHandler(columnService, logger)
+	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordRepo, logger) // Changed from bodyRecordService
+	diaryHandler := handlers.NewDiaryHandler(diaryEntryRepo, logger) // Changed from diaryService
+	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordRepo, logger) // Changed from exerciseRecordService
+	columnHandler := handlers.NewColumnHandler(columnRepo, logger) // Changed from columnService
 
 	// Create router
 	mux := http.NewServeMux()

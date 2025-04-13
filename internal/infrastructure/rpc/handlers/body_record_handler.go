@@ -8,25 +8,26 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
+	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// BodyRecordHandler implements the body record service
+// BodyRecordHandler implements the body record service RPCs
 type BodyRecordHandler struct {
-	bodyRecordApp application.BodyRecordService
-	log           *slog.Logger
+	repo *postgres.PgBodyRecordRepository // Use concrete repository type
+	log  *slog.Logger
 }
 
 // NewBodyRecordHandler creates a new body record handler
-func NewBodyRecordHandler(bodyRecordApp application.BodyRecordService, log *slog.Logger) *BodyRecordHandler {
+func NewBodyRecordHandler(repo *postgres.PgBodyRecordRepository, log *slog.Logger) *BodyRecordHandler { // Use concrete repository type
 	return &BodyRecordHandler{
-		bodyRecordApp: bodyRecordApp,
-		log:           log,
+		repo: repo,
+		log:  log,
 	}
 }
 
@@ -60,16 +61,32 @@ func (h *BodyRecordHandler) CreateBodyRecord(ctx context.Context, req *connect.R
 		bodyFat = &bf
 	}
 
-	// Call application service
-	h.log.InfoContext(ctx, "Creating body record", "userID", userID, "date", date)
-	record, err := h.bodyRecordApp.CreateOrUpdateBodyRecord(ctx, userID, date, weight, bodyFat)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to create body record", "userID", userID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create body record"))
+	// Construct persistence object (was domain object)
+	record := &postgres.BodyRecord{ // Use postgres.BodyRecord
+		UserID:            userID,
+		Date:              date,
+		WeightKg:          weight,
+		BodyFatPercentage: bodyFat,
 	}
 
-	// Convert domain model to protobuf message
-	protoRecord := toProtoBodyRecord(record)
+	// Validate the record (moved from service)
+	if err := record.Validate(); err != nil {
+		h.log.WarnContext(ctx, "Validation failed for body record", "userID", userID, "error", err)
+		// Use CodeInvalidArgument for validation errors
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid body record data: %w", err))
+	}
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Saving body record", "userID", userID, "date", date)
+	savedRecord, err := h.repo.Save(ctx, record) // Changed from bodyRecordApp.CreateOrUpdateBodyRecord
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to save body record", "userID", userID, "error", err)
+		// Use CodeInternal for persistence errors
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to save body record"))
+	}
+
+	// Convert persistence model to protobuf message
+	protoRecord := toProtoBodyRecord(savedRecord) // Use savedRecord (now *postgres.BodyRecord)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateBodyRecordResponse{
@@ -88,31 +105,49 @@ func (h *BodyRecordHandler) ListBodyRecords(ctx context.Context, req *connect.Re
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("user not authenticated"))
 	}
 
-	// Get pagination parameters
-	pageSize := 20  // Default page size
+	// Get pagination parameters & apply defaults (moved from service)
+	pageSize := 20 // Default page size
 	pageNumber := 1 // Default page number
 
 	if req.Msg.Pagination != nil {
 		if req.Msg.Pagination.PageSize > 0 {
 			pageSize = int(req.Msg.Pagination.PageSize)
+			// Apply max page size (from service)
+			if pageSize > 100 {
+				pageSize = 100
+			}
 		}
 		if req.Msg.Pagination.PageNumber > 0 {
 			pageNumber = int(req.Msg.Pagination.PageNumber)
 		}
 	}
-
-	// Call application service
-	h.log.InfoContext(ctx, "Listing body records", "userID", userID, "pageSize", pageSize, "pageNumber", pageNumber)
-	records, total, err := h.bodyRecordApp.GetBodyRecordsForUser(ctx, userID, pageNumber, pageSize)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to list body records", "userID", userID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list body records"))
+	// Ensure page is at least 1 (from service)
+	if pageNumber <= 0 {
+		pageNumber = 1
 	}
 
-	// Convert domain models to protobuf messages
-	protoRecords := make([]*v1.BodyRecord, len(records))
+	// Calculate offset (from service)
+	offset := (pageNumber - 1) * pageSize
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching body records for user", "userID", userID, "page", pageNumber, "pageSize", pageSize)
+	records, err := h.repo.FindByUser(ctx, userID, pageSize, offset) // Changed from bodyRecordApp.GetBodyRecordsForUser
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to fetch body records", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch body records"))
+	}
+
+	// Get total count (from service)
+	total, err := h.repo.CountByUser(ctx, userID)
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to count body records", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count body records"))
+	}
+
+	// Convert persistence models to protobuf messages
+	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []*postgres.BodyRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoBodyRecord(record)
+		protoRecords[i] = toProtoBodyRecord(record) // Pass *postgres.BodyRecord
 	}
 
 	// Calculate pagination response
@@ -156,18 +191,18 @@ func (h *BodyRecordHandler) GetBodyRecordsByDateRange(ctx context.Context, req *
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid end date format: %w", err))
 	}
 
-	// Call application service
-	h.log.InfoContext(ctx, "Getting body records by date range", "userID", userID, "startDate", startDate, "endDate", endDate)
-	records, err := h.bodyRecordApp.GetBodyRecordsForUserDateRange(ctx, userID, startDate, endDate)
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching body records for user by date range", "userID", userID, "startDate", startDate, "endDate", endDate)
+	records, err := h.repo.FindByUserAndDateRange(ctx, userID, startDate, endDate) // Changed from bodyRecordApp.GetBodyRecordsForUserDateRange
 	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to get body records by date range", "userID", userID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to get body records by date range"))
+		h.log.ErrorContext(ctx, "Failed to fetch body records by date range", "userID", userID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch body records by date range"))
 	}
 
-	// Convert domain models to protobuf messages
-	protoRecords := make([]*v1.BodyRecord, len(records))
+	// Convert persistence models to protobuf messages
+	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []*postgres.BodyRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoBodyRecord(record)
+		protoRecords[i] = toProtoBodyRecord(record) // Pass *postgres.BodyRecord
 	}
 
 	// Create response
@@ -178,8 +213,8 @@ func (h *BodyRecordHandler) GetBodyRecordsByDateRange(ctx context.Context, req *
 	return res, nil
 }
 
-// toProtoBodyRecord converts a domain.BodyRecord to a v1.BodyRecord
-func toProtoBodyRecord(record *domain.BodyRecord) *v1.BodyRecord {
+// toProtoBodyRecord converts a postgres.BodyRecord to a v1.BodyRecord
+func toProtoBodyRecord(record *postgres.BodyRecord) *v1.BodyRecord { // Accept *postgres.BodyRecord
 	protoRecord := &v1.BodyRecord{
 		Id:        record.ID.String(),
 		UserId:    record.UserID.String(),

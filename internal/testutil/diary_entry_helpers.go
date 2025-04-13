@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
@@ -41,6 +41,6 @@ func CreateTestDiaryEntry(ctx context.Context, queries *db.Queries, userID uuid.
 }
 
 // NewDiaryEntryRepository creates a new diary entry repository for testing
-func NewDiaryEntryRepository(pool *pgxpool.Pool) domain.DiaryEntryRepository {
+func NewDiaryEntryRepository(pool *pgxpool.Pool) *postgres.PgDiaryEntryRepository { // Return concrete type
 	return postgres.NewPgDiaryEntryRepository(pool)
 }

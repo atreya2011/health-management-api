@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -29,12 +29,12 @@ func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	service := application.NewDiaryService(repo, logger)
+	// service := application.NewDiaryService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewDiaryHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewDiaryHandler(repo, logger) // Changed from service
 
 	// Test data
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
@@ -109,12 +109,12 @@ func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	service := application.NewDiaryService(repo, logger)
+	// service := application.NewDiaryService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewDiaryHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewDiaryHandler(repo, logger) // Changed from service
 
 	// Updated data
 	updatedTitle := "Updated Title"
@@ -184,12 +184,12 @@ func TestDiaryHandler_GetDiaryEntry(t *testing.T) {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	service := application.NewDiaryService(repo, logger)
+	// service := application.NewDiaryService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewDiaryHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewDiaryHandler(repo, logger) // Changed from service
 
 	// Create a request
 	req := connect.NewRequest(&v1.GetDiaryEntryRequest{
@@ -257,12 +257,12 @@ func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	service := application.NewDiaryService(repo, logger)
+	// service := application.NewDiaryService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewDiaryHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewDiaryHandler(repo, logger) // Changed from service
 
 	// Test parameters
 	pageSize := int32(10)
@@ -338,12 +338,12 @@ func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository and service
+	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	service := application.NewDiaryService(repo, logger)
+	// service := application.NewDiaryService(repo, logger) // Removed
 
-	// Create the handler with the real service
-	handler := NewDiaryHandler(service, logger)
+	// Create the handler with the real repository
+	handler := NewDiaryHandler(repo, logger) // Changed from service
 
 	// Create a request
 	req := connect.NewRequest(&v1.DeleteDiaryEntryRequest{

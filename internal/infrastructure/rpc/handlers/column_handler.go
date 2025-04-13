@@ -5,27 +5,29 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	// "time" // Removed unused import
 
 	"connectrpc.com/connect"
-	"github.com/atreya2011/health-management-api/internal/application"
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/application" // Removed
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
+	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres" // Added
 	v1 "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// ColumnHandler implements the column service
+// ColumnHandler implements the column service RPCs
 type ColumnHandler struct {
-	columnApp application.ColumnService
-	log       *slog.Logger
+	repo *postgres.PgColumnRepository // Use concrete repository type
+	log  *slog.Logger
 }
 
 // NewColumnHandler creates a new column handler
-func NewColumnHandler(columnApp application.ColumnService, log *slog.Logger) *ColumnHandler {
+func NewColumnHandler(repo *postgres.PgColumnRepository, log *slog.Logger) *ColumnHandler { // Use concrete repository type
 	return &ColumnHandler{
-		columnApp: columnApp,
-		log:       log,
+		repo: repo,
+		log:  log,
 	}
 }
 
@@ -43,19 +45,37 @@ func (h *ColumnHandler) ListPublishedColumns(ctx context.Context, req *connect.R
 			pageNumber = int(req.Msg.Pagination.PageNumber)
 		}
 	}
-
-	// Call application service
-	h.log.InfoContext(ctx, "Listing published columns", "pageSize", pageSize, "pageNumber", pageNumber)
-	columns, total, err := h.columnApp.ListPublishedColumns(ctx, pageNumber, pageSize)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to list published columns", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list published columns"))
+	// Ensure page is at least 1 (from service)
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	// Apply max page size (from service)
+	if pageSize > 100 {
+		pageSize = 100
 	}
 
-	// Convert domain models to protobuf messages
-	protoColumns := make([]*v1.Column, len(columns))
+	// Calculate offset (from service)
+	offset := (pageNumber - 1) * pageSize
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching published columns", "page", pageNumber, "pageSize", pageSize)
+	columns, err := h.repo.FindPublished(ctx, pageSize, offset) // Changed from columnApp.ListPublishedColumns
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to fetch published columns", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch published columns"))
+	}
+
+	// Get total count (from service)
+	total, err := h.repo.CountPublished(ctx)
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to count published columns", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count published columns"))
+	}
+
+	// Convert persistence models to protobuf messages
+	protoColumns := make([]*v1.Column, len(columns)) // columns is now []*postgres.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column)
+		protoColumns[i] = toProtoColumn(column) // Pass *postgres.Column
 	}
 
 	// Calculate pagination response
@@ -86,20 +106,27 @@ func (h *ColumnHandler) GetColumn(ctx context.Context, req *connect.Request[v1.G
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid column ID: %w", err))
 	}
 
-	// Call application service
-	h.log.InfoContext(ctx, "Getting column", "columnID", columnID)
-	column, err := h.columnApp.GetColumn(ctx, columnID)
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching column", "columnID", columnID)
+	column, err := h.repo.FindByID(ctx, columnID) // Changed from columnApp.GetColumn
 	if err != nil {
-		if errors.Is(err, domain.ErrColumnNotFound) {
+		if errors.Is(err, postgres.ErrColumnNotFound) { // Use postgres error
 			h.log.WarnContext(ctx, "Column not found", "columnID", columnID)
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("column not found"))
 		}
-		h.log.ErrorContext(ctx, "Failed to get column", "columnID", columnID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to get column"))
+		h.log.ErrorContext(ctx, "Failed to fetch column", "columnID", columnID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch column"))
 	}
 
-	// Convert domain model to protobuf message
-	protoColumn := toProtoColumn(column)
+	// Check if the column is published (moved from service)
+	// Note: IsPublished is now defined on postgres.Column
+	if !column.IsPublished() { // column is now *postgres.Column
+		h.log.WarnContext(ctx, "Attempted to access unpublished column", "id", columnID)
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("column not found")) // Treat unpublished as not found
+	}
+
+	// Convert persistence model to protobuf message
+	protoColumn := toProtoColumn(column) // column is now *postgres.Column
 
 	// Create response
 	res := connect.NewResponse(&v1.GetColumnResponse{
@@ -123,19 +150,37 @@ func (h *ColumnHandler) ListColumnsByCategory(ctx context.Context, req *connect.
 			pageNumber = int(req.Msg.Pagination.PageNumber)
 		}
 	}
-
-	// Call application service
-	h.log.InfoContext(ctx, "Listing columns by category", "category", req.Msg.Category, "pageSize", pageSize, "pageNumber", pageNumber)
-	columns, total, err := h.columnApp.ListColumnsByCategory(ctx, req.Msg.Category, pageNumber, pageSize)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to list columns by category", "category", req.Msg.Category, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list columns by category"))
+	// Ensure page is at least 1 (from service)
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	// Apply max page size (from service)
+	if pageSize > 100 {
+		pageSize = 100
 	}
 
-	// Convert domain models to protobuf messages
-	protoColumns := make([]*v1.Column, len(columns))
+	// Calculate offset (from service)
+	offset := (pageNumber - 1) * pageSize
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching columns by category", "category", req.Msg.Category, "page", pageNumber, "pageSize", pageSize)
+	columns, err := h.repo.FindByCategory(ctx, req.Msg.Category, pageSize, offset) // Changed from columnApp.ListColumnsByCategory
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to fetch columns by category", "category", req.Msg.Category, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch columns by category"))
+	}
+
+	// Get total count (from service)
+	total, err := h.repo.CountByCategory(ctx, req.Msg.Category)
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to count columns by category", "category", req.Msg.Category, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count columns by category"))
+	}
+
+	// Convert persistence models to protobuf messages
+	protoColumns := make([]*v1.Column, len(columns)) // columns is now []*postgres.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column)
+		protoColumns[i] = toProtoColumn(column) // Pass *postgres.Column
 	}
 
 	// Calculate pagination response
@@ -171,19 +216,37 @@ func (h *ColumnHandler) ListColumnsByTag(ctx context.Context, req *connect.Reque
 			pageNumber = int(req.Msg.Pagination.PageNumber)
 		}
 	}
-
-	// Call application service
-	h.log.InfoContext(ctx, "Listing columns by tag", "tag", req.Msg.Tag, "pageSize", pageSize, "pageNumber", pageNumber)
-	columns, total, err := h.columnApp.ListColumnsByTag(ctx, req.Msg.Tag, pageNumber, pageSize)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to list columns by tag", "tag", req.Msg.Tag, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list columns by tag"))
+	// Ensure page is at least 1 (from service)
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	// Apply max page size (from service)
+	if pageSize > 100 {
+		pageSize = 100
 	}
 
-	// Convert domain models to protobuf messages
-	protoColumns := make([]*v1.Column, len(columns))
+	// Calculate offset (from service)
+	offset := (pageNumber - 1) * pageSize
+
+	// Call repository directly
+	h.log.InfoContext(ctx, "Fetching columns by tag", "tag", req.Msg.Tag, "page", pageNumber, "pageSize", pageSize)
+	columns, err := h.repo.FindByTag(ctx, req.Msg.Tag, pageSize, offset) // Changed from columnApp.ListColumnsByTag
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to fetch columns by tag", "tag", req.Msg.Tag, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch columns by tag"))
+	}
+
+	// Get total count (from service)
+	total, err := h.repo.CountByTag(ctx, req.Msg.Tag)
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to count columns by tag", "tag", req.Msg.Tag, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count columns by tag"))
+	}
+
+	// Convert persistence models to protobuf messages
+	protoColumns := make([]*v1.Column, len(columns)) // columns is now []*postgres.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column)
+		protoColumns[i] = toProtoColumn(column) // Pass *postgres.Column
 	}
 
 	// Calculate pagination response
@@ -205,8 +268,8 @@ func (h *ColumnHandler) ListColumnsByTag(ctx context.Context, req *connect.Reque
 	return res, nil
 }
 
-// toProtoColumn converts a domain.Column to a v1.Column
-func toProtoColumn(column *domain.Column) *v1.Column {
+// toProtoColumn converts a postgres.Column to a v1.Column
+func toProtoColumn(column *postgres.Column) *v1.Column { // Accept *postgres.Column
 	protoColumn := &v1.Column{
 		Id:        column.ID.String(),
 		Title:     column.Title,

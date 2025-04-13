@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
+	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
 	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
 	"github.com/google/uuid"
@@ -15,7 +15,7 @@ import (
 
 // CreateTestBodyRecord creates a test body record in the database using sqlc
 // Takes Queries directly.
-func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, date time.Time, weight *float64, bodyFat *float64) (*domain.BodyRecord, error) {
+func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, date time.Time, weight *float64, bodyFat *float64) (*postgres.BodyRecord, error) { // Return postgres.BodyRecord
 	var weightVal, bodyFatVal pgtype.Numeric // Use pgtype.Numeric
 
 	if weight != nil {
@@ -74,7 +74,7 @@ func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.
 		dateVal = dbRecord.Date.Time
 	}
 
-	return &domain.BodyRecord{
+	return &postgres.BodyRecord{ // Return postgres.BodyRecord
 		ID:                dbRecord.ID,
 		UserID:            dbRecord.UserID,
 		Date:              dateVal,
@@ -86,6 +86,6 @@ func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.
 }
 
 // NewBodyRecordRepository creates a new body record repository for testing
-func NewBodyRecordRepository(pool *pgxpool.Pool) domain.BodyRecordRepository {
+func NewBodyRecordRepository(pool *pgxpool.Pool) *postgres.PgBodyRecordRepository { // Return concrete type
 	return postgres.NewPgBodyRecordRepository(pool)
 }
