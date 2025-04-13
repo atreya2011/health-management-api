@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time" // Added for User struct
+	// "time" // Removed unused import
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	db "github.com/atreya2011/health-management-api/internal/db/gen"
@@ -14,19 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ErrUserNotFound is returned when a user is not found (Moved from domain)
+// ErrUserNotFound is returned when a user is not found
 var ErrUserNotFound = errors.New("user not found")
 
-// User represents a user in the system (Moved from domain)
-type User struct {
-	ID        uuid.UUID
-	SubjectID string // Subject identifier from JWT, keep internal, don't expose in API directly
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// PgUserRepository provides database operations for User (Exported)
-type PgUserRepository struct { // Renamed to export
+// PgUserRepository provides database operations for User
+type PgUserRepository struct {
 	q *db.Queries
 }
 
@@ -38,53 +30,49 @@ func NewPgUserRepository(pool *pgxpool.Pool) *PgUserRepository { // Return expor
 }
 
 // Create creates a new user record
-func (r *PgUserRepository) Create(ctx context.Context, user *User) error { // Use local User
-	dbUser, err := r.q.CreateUser(ctx, user.SubjectID)
+func (r *PgUserRepository) Create(ctx context.Context, subjectID string) (db.User, error) {
+	dbUser, err := r.q.CreateUser(ctx, subjectID)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-			return fmt.Errorf("user with this subject ID already exists: %w", err)
+			// If user already exists, try to fetch them instead of returning an error
+			existingUser, findErr := r.FindBySubjectID(ctx, subjectID)
+			if findErr != nil {
+				// Return original creation error if fetching also fails
+				return db.User{}, fmt.Errorf("user with subject ID %s already exists, but failed to retrieve: %w; original error: %w", subjectID, findErr, err)
+			}
+			return existingUser, nil // Return existing user
 		}
-		return fmt.Errorf("failed to create user: %w", err)
+		return db.User{}, fmt.Errorf("failed to create user: %w", err)
 	}
-
-	user.ID = dbUser.ID
-	user.CreatedAt = dbUser.CreatedAt
-	user.UpdatedAt = dbUser.UpdatedAt
-
-	return nil
+	// Return the newly created user directly
+	return dbUser, nil
 }
 
 // FindByID retrieves a user by their internal UUID
-func (r *PgUserRepository) FindByID(ctx context.Context, id uuid.UUID) (*User, error) { // Use local User
+func (r *PgUserRepository) FindByID(ctx context.Context, id uuid.UUID) (db.User, error) {
 	dbUser, err := r.q.GetUserByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound // Use local error
+			return db.User{}, ErrUserNotFound // Return zero value and local error
 		}
-		return nil, fmt.Errorf("failed to get user by ID: %w", err)
+		return db.User{}, fmt.Errorf("failed to get user by ID: %w", err)
 	}
-	return toLocalUser(dbUser), nil // Use local conversion func
+	// Return generated struct directly
+	return dbUser, nil
 }
 
 // FindBySubjectID retrieves a user by their JWT Subject claim
-func (r *PgUserRepository) FindBySubjectID(ctx context.Context, subjectID string) (*User, error) { // Use local User
+func (r *PgUserRepository) FindBySubjectID(ctx context.Context, subjectID string) (db.User, error) {
 	dbUser, err := r.q.GetUserBySubjectID(ctx, subjectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound // Use local error
+			return db.User{}, ErrUserNotFound // Return zero value and local error
 		}
-		return nil, fmt.Errorf("failed to get user by subject ID: %w", err)
+		return db.User{}, fmt.Errorf("failed to get user by subject ID: %w", err)
 	}
-	return toLocalUser(dbUser), nil // Use local conversion func
+	// Return generated struct directly
+	return dbUser, nil
 }
 
-// toLocalUser converts a db.User (sqlc-generated) to a local User
-func toLocalUser(dbUser db.User) *User { // Return local User
-	return &User{ // Use local User
-		ID:        dbUser.ID,
-		SubjectID: dbUser.SubjectID,
-		CreatedAt: dbUser.CreatedAt,
-		UpdatedAt: dbUser.UpdatedAt,
-	}
-}
+// Removed toLocalUser function as it's no longer needed

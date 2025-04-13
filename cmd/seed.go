@@ -70,33 +70,45 @@ func runSeed() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Create a test user if it doesn't exist
-	testUser, err := userRepo.FindBySubjectID(ctx, "test-subject-id")
+	// Create or get a test user
+	testUser, err := userRepo.Create(ctx, "test-subject-id")
 	if err != nil {
-		if errors.Is(err, postgres.ErrUserNotFound) { // Use postgres error
-			// Create a new test user
-			newUser := &postgres.User{ // Use postgres.User
-				SubjectID: "test-subject-id",
-			}
-			if err := userRepo.Create(ctx, newUser); err != nil {
-				logger.Error("Failed to create test user", "error", err)
-				return
-			}
-			logger.Info("Created test user", "subjectID", "test-subject-id")
-
-			// Get the created user
-			testUser, err = userRepo.FindBySubjectID(ctx, "test-subject-id")
-			if err != nil {
-				logger.Error("Failed to retrieve newly created test user", "error", err)
-				return
-			}
-		} else {
-			logger.Error("Failed to check for test user", "error", err)
+		// Check if it's the specific "not found" error which Create now handles internally by fetching
+		// If it's any other error during creation or fetching, log and return
+		if !errors.Is(err, postgres.ErrUserNotFound) {
+			logger.Error("Failed to create or retrieve test user", "error", err)
 			return
 		}
+		// If ErrUserNotFound somehow bubbles up despite the logic in Create, log it.
+		// This case shouldn't happen based on the current Create implementation.
+		logger.Error("Unexpected ErrUserNotFound after Create call", "error", err)
+		return
+	}
+	// If Create returns successfully, testUser contains either the newly created or existing user
+	logger.Info("Ensured test user exists", "subjectID", "test-subject-id", "userID", testUser.ID)
+
+	// Note: The original code fetched the user again after creation.
+	// The modified Create method now returns the user directly (either new or existing),
+	// so the second fetch is no longer necessary.
+
+	// Check if context timed out after user creation/retrieval
+	if ctx.Err() != nil {
+		logger.Error("Context deadline exceeded after user creation/retrieval", "error", ctx.Err())
+		return
 	}
 
-	logger.Info("Using test user for mock data", "userID", testUser.ID)
+	// Original error handling for FindBySubjectID (kept for reference, but Create handles this now)
+	// testUser, err := userRepo.FindBySubjectID(ctx, "test-subject-id")
+	// if err != nil {
+	// 	if errors.Is(err, postgres.ErrUserNotFound) { // Use postgres error
+	// 		// Create logic was here...
+	// 	} else {
+	// 		logger.Error("Failed to check for test user", "error", err)
+	// 		return
+	// 	}
+	// }
+
+	// logger.Info("Using test user for mock data", "userID", testUser.ID) // Removed duplicate log and extra braces
 
 	// Create mock body records for the specified number of days
 	now := time.Now().UTC().Truncate(24 * time.Hour)
@@ -108,17 +120,11 @@ func runSeed() {
 		weight := 70.0 + float64(i%5)
 		bodyFat := 15.0 + float64(i%3)
 
-		record := &postgres.BodyRecord{ // Use postgres.BodyRecord
-			UserID:            testUser.ID,
-			Date:              date,
-			WeightKg:          &weight,
-			BodyFatPercentage: &bodyFat,
-		}
-
-		_, err := bodyRecordRepo.Save(ctx, record)
+		// Call Save with individual arguments
+		_, err := bodyRecordRepo.Save(ctx, testUser.ID, date, &weight, &bodyFat)
 		if err != nil {
 			logger.Warn("Failed to create mock body record", "date", date, "error", err)
-			continue
+			continue // Continue to next day even if one fails
 		}
 
 		if verboseMode {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors" // Use standard errors
 	"fmt"
-	"strings" // Added for validation
+	// "strings" // Removed unused import
 	"time"
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
@@ -16,48 +16,11 @@ import (
 	// "github.com/pkg/errors" // Removed, use fmt.Errorf with %w
 )
 
-// ErrDiaryEntryNotFound is returned when a diary entry is not found (Moved from domain)
+// ErrDiaryEntryNotFound is returned when a diary entry is not found
 var ErrDiaryEntryNotFound = errors.New("diary entry not found")
 
-// DiaryEntry represents a diary entry for a user (Moved from domain)
-type DiaryEntry struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	Title     *string
-	Content   string
-	EntryDate time.Time // Store as time.Time (YYYY-MM-DD 00:00:00 UTC)
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// Validate performs validation on the diary entry (Moved from domain)
-func (de *DiaryEntry) Validate() error {
-	// Validate content (required)
-	if strings.TrimSpace(de.Content) == "" {
-		return errors.New("content cannot be empty")
-	}
-
-	// Validate content length
-	if len(de.Content) > 10000 {
-		return errors.New("content exceeds maximum allowed length (10000 characters)")
-	}
-
-	// Validate title length (if provided)
-	if de.Title != nil && len(*de.Title) > 200 {
-		return errors.New("title exceeds maximum allowed length (200 characters)")
-	}
-
-	// Validate entry date is not in the future
-	now := time.Now()
-	if de.EntryDate.After(now) {
-		return errors.New("entry date cannot be in the future")
-	}
-
-	return nil
-}
-
-// PgDiaryEntryRepository provides database operations for DiaryEntry (Exported)
-type PgDiaryEntryRepository struct { // Renamed to export
+// PgDiaryEntryRepository provides database operations for DiaryEntry
+type PgDiaryEntryRepository struct {
 	q *db.Queries
 }
 
@@ -69,56 +32,58 @@ func NewPgDiaryEntryRepository(pool *pgxpool.Pool) *PgDiaryEntryRepository { // 
 }
 
 // Create creates a new diary entry
-func (r *PgDiaryEntryRepository) Create(ctx context.Context, entry *DiaryEntry) (*DiaryEntry, error) { // Use local DiaryEntry
+func (r *PgDiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, title *string, content string, entryDate time.Time) (db.DiaryEntry, error) {
 	var titleVal pgtype.Text
-	if entry.Title != nil {
-		titleVal = pgtype.Text{String: *entry.Title, Valid: true}
+	if title != nil {
+		titleVal = pgtype.Text{String: *title, Valid: true}
 	}
 
-	pgDate := pgtype.Date{Time: entry.EntryDate, Valid: true}
+	pgDate := pgtype.Date{Time: entryDate, Valid: true}
 
 	params := db.CreateDiaryEntryParams{
-		UserID:    entry.UserID,
+		UserID:    userID,
 		Title:     titleVal,
-		Content:   entry.Content,
+		Content:   content,
 		EntryDate: pgDate,
 	}
 
 	dbEntry, err := r.q.CreateDiaryEntry(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create diary entry: %w", err)
+		return db.DiaryEntry{}, fmt.Errorf("failed to create diary entry: %w", err)
 	}
 
-	return toLocalDiaryEntry(dbEntry), nil // Use local conversion func
+	// Return generated struct directly
+	return dbEntry, nil
 }
 
 // Update updates an existing diary entry
-func (r *PgDiaryEntryRepository) Update(ctx context.Context, entry *DiaryEntry) (*DiaryEntry, error) { // Use local DiaryEntry
+func (r *PgDiaryEntryRepository) Update(ctx context.Context, id, userID uuid.UUID, title *string, content string) (db.DiaryEntry, error) {
 	var titleVal pgtype.Text
-	if entry.Title != nil {
-		titleVal = pgtype.Text{String: *entry.Title, Valid: true}
+	if title != nil {
+		titleVal = pgtype.Text{String: *title, Valid: true}
 	}
 
 	params := db.UpdateDiaryEntryParams{
-		ID:      entry.ID,
+		ID:      id,
 		Title:   titleVal,
-		Content: entry.Content,
-		UserID:  entry.UserID,
+		Content: content,
+		UserID:  userID, // Need UserID to ensure user owns the entry being updated
 	}
 
 	dbEntry, err := r.q.UpdateDiaryEntry(ctx, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrDiaryEntryNotFound // Use local error
+			return db.DiaryEntry{}, ErrDiaryEntryNotFound // Return zero value and local error
 		}
-		return nil, fmt.Errorf("failed to update diary entry: %w", err) // Use fmt.Errorf
+		return db.DiaryEntry{}, fmt.Errorf("failed to update diary entry: %w", err) // Use fmt.Errorf
 	}
 
-	return toLocalDiaryEntry(dbEntry), nil // Use local conversion func
+	// Return generated struct directly
+	return dbEntry, nil
 }
 
 // FindByID retrieves a diary entry by ID and user ID
-func (r *PgDiaryEntryRepository) FindByID(ctx context.Context, id, userID uuid.UUID) (*DiaryEntry, error) { // Use local DiaryEntry
+func (r *PgDiaryEntryRepository) FindByID(ctx context.Context, id, userID uuid.UUID) (db.DiaryEntry, error) {
 	params := db.GetDiaryEntryByIDParams{
 		ID:     id,
 		UserID: userID,
@@ -127,16 +92,17 @@ func (r *PgDiaryEntryRepository) FindByID(ctx context.Context, id, userID uuid.U
 	dbEntry, err := r.q.GetDiaryEntryByID(ctx, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrDiaryEntryNotFound // Use local error
+			return db.DiaryEntry{}, ErrDiaryEntryNotFound // Return zero value and local error
 		}
-		return nil, fmt.Errorf("failed to find diary entry: %w", err) // Use fmt.Errorf
+		return db.DiaryEntry{}, fmt.Errorf("failed to find diary entry: %w", err) // Use fmt.Errorf
 	}
 
-	return toLocalDiaryEntry(dbEntry), nil // Use local conversion func
+	// Return generated struct directly
+	return dbEntry, nil
 }
 
 // FindByUser retrieves paginated diary entries for a user
-func (r *PgDiaryEntryRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*DiaryEntry, error) { // Use local DiaryEntry slice
+func (r *PgDiaryEntryRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]db.DiaryEntry, error) {
 	params := db.ListDiaryEntriesByUserParams{
 		UserID: userID,
 		Limit:  int32(limit),
@@ -148,12 +114,8 @@ func (r *PgDiaryEntryRepository) FindByUser(ctx context.Context, userID uuid.UUI
 		return nil, fmt.Errorf("failed to list diary entries: %w", err)
 	}
 
-	entries := make([]*DiaryEntry, len(dbEntries)) // Use local DiaryEntry slice
-	for i, dbEntry := range dbEntries {
-		entries[i] = toLocalDiaryEntry(dbEntry) // Use local conversion func
-	}
-
-	return entries, nil
+	// Return generated structs directly
+	return dbEntries, nil
 }
 
 // Delete deletes a diary entry by ID and user ID
@@ -186,25 +148,4 @@ func (r *PgDiaryEntryRepository) CountByUser(ctx context.Context, userID uuid.UU
 	return count, nil
 }
 
-// toLocalDiaryEntry converts a db.DiaryEntry (sqlc-generated) to a local DiaryEntry
-func toLocalDiaryEntry(dbEntry db.DiaryEntry) *DiaryEntry { // Return local DiaryEntry
-	var title *string
-	if dbEntry.Title.Valid {
-		title = &dbEntry.Title.String
-	}
-
-	var entryDateVal time.Time
-	if dbEntry.EntryDate.Valid {
-		entryDateVal = dbEntry.EntryDate.Time
-	}
-
-	return &DiaryEntry{ // Use local DiaryEntry
-		ID:        dbEntry.ID,
-		UserID:    dbEntry.UserID,
-		Title:     title,
-		Content:   dbEntry.Content,
-		EntryDate: entryDateVal,
-		CreatedAt: dbEntry.CreatedAt,
-		UpdatedAt: dbEntry.UpdatedAt,
-	}
-}
+// Removed toLocalDiaryEntry function as it's no longer needed

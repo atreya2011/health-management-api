@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors" // Use standard errors
 	"fmt"
-	"time"
+	// "time" // Removed, no longer needed here
 
-	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,39 +14,11 @@ import (
 	// "github.com/pkg/errors" // Removed, use fmt.Errorf with %w
 )
 
-// ErrColumnNotFound is returned when a column is not found (Moved from domain)
+// ErrColumnNotFound is returned when a column is not found
 var ErrColumnNotFound = errors.New("column not found")
 
-// Column represents a health-related article or column (Moved from domain)
-type Column struct {
-	ID          uuid.UUID
-	Title       string
-	Content     string
-	Category    *string
-	Tags        []string
-	PublishedAt *time.Time // Nullable, only show if not null and in the past
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-// Validate performs validation on the column (Moved from domain)
-func (c *Column) Validate() error {
-	if c.Title == "" {
-		return errors.New("title cannot be empty")
-	}
-	if c.Content == "" {
-		return errors.New("content cannot be empty")
-	}
-	return nil
-}
-
-// IsPublished checks if the column is published and visible (Moved from domain)
-func (c *Column) IsPublished() bool {
-	return c.PublishedAt != nil && c.PublishedAt.Before(time.Now())
-}
-
-// PgColumnRepository provides database operations for Column (Exported)
-type PgColumnRepository struct { // Renamed to export
+// PgColumnRepository provides database operations for Column
+type PgColumnRepository struct {
 	q *db.Queries
 }
 
@@ -59,7 +30,7 @@ func NewPgColumnRepository(pool *pgxpool.Pool) *PgColumnRepository { // Return e
 }
 
 // FindPublished retrieves paginated published columns
-func (r *PgColumnRepository) FindPublished(ctx context.Context, limit, offset int) ([]*Column, error) { // Use local Column slice
+func (r *PgColumnRepository) FindPublished(ctx context.Context, limit, offset int) ([]db.Column, error) {
 	params := db.ListPublishedColumnsParams{
 		Limit:  int32(limit),
 		Offset: int32(offset),
@@ -70,29 +41,26 @@ func (r *PgColumnRepository) FindPublished(ctx context.Context, limit, offset in
 		return nil, fmt.Errorf("failed to list published columns: %w", err)
 	}
 
-	columns := make([]*Column, len(dbColumns)) // Use local Column slice
-	for i, dbColumn := range dbColumns {
-		columns[i] = toLocalColumn(dbColumn) // Use local conversion func
-	}
-
-	return columns, nil
+	// Return generated structs directly
+	return dbColumns, nil
 }
 
 // FindByID retrieves a column by ID
-func (r *PgColumnRepository) FindByID(ctx context.Context, id uuid.UUID) (*Column, error) { // Use local Column
+func (r *PgColumnRepository) FindByID(ctx context.Context, id uuid.UUID) (db.Column, error) {
 	dbColumn, err := r.q.GetColumnByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrColumnNotFound // Use local error
+			return db.Column{}, ErrColumnNotFound // Return zero value and local error
 		}
-		return nil, fmt.Errorf("failed to find column: %w", err) // Use fmt.Errorf
+		return db.Column{}, fmt.Errorf("failed to find column: %w", err) // Use fmt.Errorf
 	}
 
-	return toLocalColumn(dbColumn), nil // Use local conversion func
+	// Return generated struct directly
+	return dbColumn, nil
 }
 
 // FindByCategory retrieves paginated columns by category
-func (r *PgColumnRepository) FindByCategory(ctx context.Context, category string, limit, offset int) ([]*Column, error) { // Use local Column slice
+func (r *PgColumnRepository) FindByCategory(ctx context.Context, category string, limit, offset int) ([]db.Column, error) {
 	params := db.ListColumnsByCategoryParams{
 		Category: pgtype.Text{String: category, Valid: true},
 		Limit:    int32(limit),
@@ -104,16 +72,12 @@ func (r *PgColumnRepository) FindByCategory(ctx context.Context, category string
 		return nil, fmt.Errorf("failed to list columns by category: %w", err)
 	}
 
-	columns := make([]*Column, len(dbColumns)) // Use local Column slice
-	for i, dbColumn := range dbColumns {
-		columns[i] = toLocalColumn(dbColumn) // Use local conversion func
-	}
-
-	return columns, nil
+	// Return generated structs directly
+	return dbColumns, nil
 }
 
 // FindByTag retrieves paginated columns by tag
-func (r *PgColumnRepository) FindByTag(ctx context.Context, tag string, limit, offset int) ([]*Column, error) { // Use local Column slice
+func (r *PgColumnRepository) FindByTag(ctx context.Context, tag string, limit, offset int) ([]db.Column, error) {
 	params := db.ListColumnsByTagParams{
 		Column1: tag,
 		Limit:   int32(limit),
@@ -124,11 +88,8 @@ func (r *PgColumnRepository) FindByTag(ctx context.Context, tag string, limit, o
 		return nil, fmt.Errorf("failed to list columns by tag: %w", err) // Use fmt.Errorf
 	}
 
-	columns := make([]*Column, len(dbColumns)) // Use local Column slice
-	for i, dbCol := range dbColumns {
-		columns[i] = toLocalColumn(dbCol) // Use local conversion func
-	}
-	return columns, nil
+	// Return generated structs directly
+	return dbColumns, nil
 }
 
 // CountPublished returns the total number of published columns
@@ -161,26 +122,4 @@ func (r *PgColumnRepository) CountByTag(ctx context.Context, tag string) (int64,
 	return count, nil
 }
 
-// toLocalColumn converts a db.Column (sqlc-generated) to a local Column
-func toLocalColumn(dbColumn db.Column) *Column { // Return local Column
-	var category *string
-	if dbColumn.Category.Valid {
-		category = &dbColumn.Category.String
-	}
-
-	var publishedAt *time.Time
-	if dbColumn.PublishedAt.Valid {
-		publishedAt = &dbColumn.PublishedAt.Time
-	}
-
-	return &Column{ // Use local Column
-		ID:          dbColumn.ID,
-		Title:       dbColumn.Title,
-		Content:     dbColumn.Content,
-		Category:    category,
-		Tags:        dbColumn.Tags,
-		PublishedAt: publishedAt,
-		CreatedAt:   dbColumn.CreatedAt,
-		UpdatedAt:   dbColumn.UpdatedAt,
-	}
-}
+// Removed toLocalColumn function as it's no longer needed

@@ -12,6 +12,7 @@ import (
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/auth"
 	postgres "github.com/atreya2011/health-management-api/internal/db" // Added
+	db "github.com/atreya2011/health-management-api/internal/db/gen"    // Added for gen types
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -61,24 +62,30 @@ func (h *BodyRecordHandler) CreateBodyRecord(ctx context.Context, req *connect.R
 		bodyFat = &bf
 	}
 
-	// Construct persistence object (was domain object)
-	record := &postgres.BodyRecord{ // Use postgres.BodyRecord
-		UserID:            userID,
-		Date:              date,
-		WeightKg:          weight,
-		BodyFatPercentage: bodyFat,
+	// Re-implement validation logic here (previously in domain.BodyRecord.Validate)
+	if weight != nil {
+		w := *weight
+		if w <= 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("weight must be positive"))
+		}
+		if w > 500 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("weight exceeds maximum allowed value"))
+		}
 	}
-
-	// Validate the record (moved from service)
-	if err := record.Validate(); err != nil {
-		h.log.WarnContext(ctx, "Validation failed for body record", "userID", userID, "error", err)
-		// Use CodeInvalidArgument for validation errors
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid body record data: %w", err))
+	if bodyFat != nil {
+		bf := *bodyFat
+		if bf < 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("body fat percentage cannot be negative"))
+		}
+		if bf > 100 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("body fat percentage cannot exceed 100%"))
+		}
 	}
+	// Removed instantiation of postgres.BodyRecord
 
-	// Call repository directly
+	// Call repository directly with new signature
 	h.log.InfoContext(ctx, "Saving body record", "userID", userID, "date", date)
-	savedRecord, err := h.repo.Save(ctx, record) // Changed from bodyRecordApp.CreateOrUpdateBodyRecord
+	savedRecord, err := h.repo.Save(ctx, userID, date, weight, bodyFat) // Use new signature
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to save body record", "userID", userID, "error", err)
 		// Use CodeInternal for persistence errors
@@ -86,7 +93,7 @@ func (h *BodyRecordHandler) CreateBodyRecord(ctx context.Context, req *connect.R
 	}
 
 	// Convert persistence model to protobuf message
-	protoRecord := toProtoBodyRecord(savedRecord) // Use savedRecord (now *postgres.BodyRecord)
+	protoRecord := toProtoBodyRecord(savedRecord) // Use savedRecord (now db.BodyRecord)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateBodyRecordResponse{
@@ -145,9 +152,9 @@ func (h *BodyRecordHandler) ListBodyRecords(ctx context.Context, req *connect.Re
 	}
 
 	// Convert persistence models to protobuf messages
-	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []*postgres.BodyRecord
+	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []db.BodyRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoBodyRecord(record) // Pass *postgres.BodyRecord
+		protoRecords[i] = toProtoBodyRecord(record) // Pass db.BodyRecord
 	}
 
 	// Calculate pagination response
@@ -200,9 +207,9 @@ func (h *BodyRecordHandler) GetBodyRecordsByDateRange(ctx context.Context, req *
 	}
 
 	// Convert persistence models to protobuf messages
-	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []*postgres.BodyRecord
+	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []db.BodyRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoBodyRecord(record) // Pass *postgres.BodyRecord
+		protoRecords[i] = toProtoBodyRecord(record) // Pass db.BodyRecord
 	}
 
 	// Create response
@@ -213,23 +220,42 @@ func (h *BodyRecordHandler) GetBodyRecordsByDateRange(ctx context.Context, req *
 	return res, nil
 }
 
-// toProtoBodyRecord converts a postgres.BodyRecord to a v1.BodyRecord
-func toProtoBodyRecord(record *postgres.BodyRecord) *v1.BodyRecord { // Accept *postgres.BodyRecord
+// toProtoBodyRecord converts a db.BodyRecord (sqlc generated) to a v1.BodyRecord
+func toProtoBodyRecord(record db.BodyRecord) *v1.BodyRecord { // Accept db.BodyRecord
 	protoRecord := &v1.BodyRecord{
 		Id:        record.ID.String(),
 		UserId:    record.UserID.String(),
-		Date:      record.Date.Format("2006-01-02"),
+		// Date needs conversion from pgtype.Date
 		CreatedAt: timestamppb.New(record.CreatedAt),
 		UpdatedAt: timestamppb.New(record.UpdatedAt),
 	}
 
-	// Handle optional fields
-	if record.WeightKg != nil {
-		protoRecord.WeightKg = &wrapperspb.DoubleValue{Value: *record.WeightKg}
+	// Handle pgtype.Date
+	if record.Date.Valid {
+		protoRecord.Date = record.Date.Time.Format("2006-01-02")
 	}
 
-	if record.BodyFatPercentage != nil {
-		protoRecord.BodyFatPercentage = &wrapperspb.DoubleValue{Value: *record.BodyFatPercentage}
+	// Handle pgtype.Numeric for optional fields
+	if record.WeightKg.Valid {
+		// Attempt to convert pgtype.Numeric to float64
+		w, err := record.WeightKg.Float64Value()
+		if err == nil {
+			protoRecord.WeightKg = &wrapperspb.DoubleValue{Value: w.Float64}
+		} else {
+			// Log or handle the error appropriately if conversion fails
+			fmt.Printf("Warning: could not convert WeightKg %v to float64: %v\n", record.WeightKg, err)
+		}
+	}
+
+	if record.BodyFatPercentage.Valid {
+		// Attempt to convert pgtype.Numeric to float64
+		bf, err := record.BodyFatPercentage.Float64Value()
+		if err == nil {
+			protoRecord.BodyFatPercentage = &wrapperspb.DoubleValue{Value: bf.Float64}
+		} else {
+			// Log or handle the error appropriately if conversion fails
+			fmt.Printf("Warning: could not convert BodyFatPercentage %v to float64: %v\n", record.BodyFatPercentage, err)
+		}
 	}
 
 	return protoRecord

@@ -14,8 +14,8 @@ import (
 )
 
 // CreateTestExerciseRecord creates a test exercise record in the database using sqlc
-// Takes Queries directly.
-func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (*postgres.ExerciseRecord, error) { // Return postgres.ExerciseRecord
+// Takes Queries directly and returns the generated db.ExerciseRecord.
+func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (db.ExerciseRecord, error) { // Return db.ExerciseRecord
 	var durationMinutesVal, caloriesBurnedVal pgtype.Int4 // Use pgtype.Int4 for INTEGER
 
 	if durationMinutes != nil {
@@ -39,32 +39,11 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 
 	dbRecord, err := queries.CreateExerciseRecord(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("could not create test exercise record: %w", err)
+		return db.ExerciseRecord{}, fmt.Errorf("could not create test exercise record: %w", err) // Return zero value on error
 	}
 
-	var durationMinutesPtr *int32
-	var caloriesBurnedPtr *int32
-
-	if dbRecord.DurationMinutes.Valid {
-		durationMinutesPtr = &dbRecord.DurationMinutes.Int32
-	}
-
-	if dbRecord.CaloriesBurned.Valid {
-		caloriesBurnedPtr = &dbRecord.CaloriesBurned.Int32
-	}
-
-	recordedAtVal := dbRecord.RecordedAt // No conversion needed
-
-	return &postgres.ExerciseRecord{ // Return postgres.ExerciseRecord
-		ID:              dbRecord.ID,
-		UserID:          dbRecord.UserID,
-		ExerciseName:    dbRecord.ExerciseName,
-		DurationMinutes: durationMinutesPtr,
-		CaloriesBurned:  caloriesBurnedPtr,
-		RecordedAt:      recordedAtVal,      // Use the time.Time value
-		CreatedAt:       dbRecord.CreatedAt, // Already time.Time
-		UpdatedAt:       dbRecord.UpdatedAt, // Already time.Time
-	}, nil
+	// Return the generated struct directly
+	return dbRecord, nil
 }
 
 // NewExerciseRecordRepository creates a new exercise record repository for testing

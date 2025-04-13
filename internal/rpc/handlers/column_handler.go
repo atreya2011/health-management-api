@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
-	// "time" // Removed unused import
+	"time" // Added back for time.Now()
 
 	"connectrpc.com/connect"
 	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	postgres "github.com/atreya2011/health-management-api/internal/db" // Added
+	db "github.com/atreya2011/health-management-api/internal/db/gen"    // Added for gen types
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -74,9 +74,9 @@ func (h *ColumnHandler) ListPublishedColumns(ctx context.Context, req *connect.R
 	}
 
 	// Convert persistence models to protobuf messages
-	protoColumns := make([]*v1.Column, len(columns)) // columns is now []*postgres.Column
+	protoColumns := make([]*v1.Column, len(columns)) // columns is now []db.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column) // Pass *postgres.Column
+		protoColumns[i] = toProtoColumn(column) // Pass db.Column
 	}
 
 	// Calculate pagination response
@@ -119,15 +119,16 @@ func (h *ColumnHandler) GetColumn(ctx context.Context, req *connect.Request[v1.G
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch column"))
 	}
 
-	// Check if the column is published (moved from service)
-	// Note: IsPublished is now defined on postgres.Column
-	if !column.IsPublished() { // column is now *postgres.Column
+	// Check if the column is published using the PublishedAt field
+	// A column is published if PublishedAt is not NULL and is in the past.
+	isPublished := column.PublishedAt.Valid && column.PublishedAt.Time.Before(time.Now())
+	if !isPublished {
 		h.log.WarnContext(ctx, "Attempted to access unpublished column", "id", columnID)
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("column not found")) // Treat unpublished as not found
 	}
 
 	// Convert persistence model to protobuf message
-	protoColumn := toProtoColumn(column) // column is now *postgres.Column
+	protoColumn := toProtoColumn(column) // column is now db.Column
 
 	// Create response
 	res := connect.NewResponse(&v1.GetColumnResponse{
@@ -179,9 +180,9 @@ func (h *ColumnHandler) ListColumnsByCategory(ctx context.Context, req *connect.
 	}
 
 	// Convert persistence models to protobuf messages
-	protoColumns := make([]*v1.Column, len(columns)) // columns is now []*postgres.Column
+	protoColumns := make([]*v1.Column, len(columns)) // columns is now []db.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column) // Pass *postgres.Column
+		protoColumns[i] = toProtoColumn(column) // Pass db.Column
 	}
 
 	// Calculate pagination response
@@ -245,9 +246,9 @@ func (h *ColumnHandler) ListColumnsByTag(ctx context.Context, req *connect.Reque
 	}
 
 	// Convert persistence models to protobuf messages
-	protoColumns := make([]*v1.Column, len(columns)) // columns is now []*postgres.Column
+	protoColumns := make([]*v1.Column, len(columns)) // columns is now []db.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column) // Pass *postgres.Column
+		protoColumns[i] = toProtoColumn(column) // Pass db.Column
 	}
 
 	// Calculate pagination response
@@ -269,25 +270,32 @@ func (h *ColumnHandler) ListColumnsByTag(ctx context.Context, req *connect.Reque
 	return res, nil
 }
 
-// toProtoColumn converts a postgres.Column to a v1.Column
-func toProtoColumn(column *postgres.Column) *v1.Column { // Accept *postgres.Column
+// toProtoColumn converts a db.Column (sqlc generated) to a v1.Column
+func toProtoColumn(column db.Column) *v1.Column { // Accept db.Column
 	protoColumn := &v1.Column{
 		Id:        column.ID.String(),
 		Title:     column.Title,
 		Content:   column.Content,
-		Tags:      column.Tags,
+		Tags:      column.Tags, // Assuming Tags is []string in db.Column
 		CreatedAt: timestamppb.New(column.CreatedAt),
 		UpdatedAt: timestamppb.New(column.UpdatedAt),
 	}
 
-	// Handle optional fields
-	if column.Category != nil {
-		protoColumn.Category = &wrapperspb.StringValue{Value: *column.Category}
+	// Handle pgtype.Text for Category
+	if column.Category.Valid {
+		protoColumn.Category = &wrapperspb.StringValue{Value: column.Category.String}
 	}
 
-	if column.PublishedAt != nil {
-		protoColumn.PublishedAt = timestamppb.New(*column.PublishedAt)
+	// Handle pgtype.Timestamp for PublishedAt
+	if column.PublishedAt.Valid {
+		protoColumn.PublishedAt = timestamppb.New(column.PublishedAt.Time)
 	}
 
 	return protoColumn
+}
+
+// Helper function to check if a column is published (needed for GetColumn)
+// This replaces the removed IsPublished method
+func isColumnPublished(column db.Column) bool {
+	return column.PublishedAt.Valid && column.PublishedAt.Time.Before(time.Now())
 }

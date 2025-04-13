@@ -12,6 +12,7 @@ import (
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/auth"
 	postgres "github.com/atreya2011/health-management-api/internal/db" // Added
+	db "github.com/atreya2011/health-management-api/internal/db/gen"    // Use this alias
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -63,34 +64,47 @@ func (h *ExerciseRecordHandler) CreateExerciseRecord(ctx context.Context, req *c
 		caloriesBurned = &c
 	}
 
-	// Construct persistence object (was domain object)
-	record := &postgres.ExerciseRecord{ // Use postgres.ExerciseRecord
-		ID:              uuid.New(), // Generate ID here
-		UserID:          userID,
-		ExerciseName:    req.Msg.ExerciseName,
-		DurationMinutes: durationMinutes,
-		CaloriesBurned:  caloriesBurned,
-		RecordedAt:      recordedAt,
-		CreatedAt:       time.Now(), // Set timestamp here
-		UpdatedAt:       time.Now(), // Set timestamp here
+	// Re-implement validation logic here
+	exerciseName := req.Msg.ExerciseName
+	if exerciseName == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("exercise name cannot be empty"))
 	}
-
-	// Validate the record (moved from service)
-	if err := record.Validate(); err != nil {
-		h.log.WarnContext(ctx, "Validation failed for exercise record", "userID", userID, "error", err)
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid exercise record data: %w", err))
+	if len(exerciseName) > 100 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("exercise name exceeds maximum allowed length (100 characters)"))
 	}
+	if durationMinutes != nil {
+		duration := *durationMinutes
+		if duration <= 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("duration must be positive"))
+		}
+		if duration > 1440 { // 24 hours in minutes
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("duration exceeds maximum allowed value (24 hours)"))
+		}
+	}
+	if caloriesBurned != nil {
+		calories := *caloriesBurned
+		if calories < 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("calories burned cannot be negative"))
+		}
+		if calories > 10000 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("calories burned exceeds maximum allowed value"))
+		}
+	}
+	if recordedAt.After(time.Now()) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("recorded date cannot be in the future"))
+	}
+	// Removed instantiation of postgres.ExerciseRecord
 
-	// Call repository directly
-	h.log.InfoContext(ctx, "Creating exercise record", "userID", userID, "exerciseName", req.Msg.ExerciseName)
-	savedRecord, err := h.repo.Create(ctx, record) // Changed from exerciseApp.CreateExerciseRecord
+	// Call repository directly with new signature
+	h.log.InfoContext(ctx, "Creating exercise record", "userID", userID, "exerciseName", exerciseName)
+	savedRecord, err := h.repo.Create(ctx, userID, exerciseName, durationMinutes, caloriesBurned, recordedAt) // Use new signature
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to create exercise record", "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create exercise record"))
 	}
 
 	// Convert persistence model to protobuf message
-	protoRecord := toProtoExerciseRecord(savedRecord) // Use savedRecord (now *postgres.ExerciseRecord)
+	protoRecord := toProtoExerciseRecord(savedRecord) // Use savedRecord (now db.ExerciseRecord)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateExerciseRecordResponse{
@@ -149,9 +163,9 @@ func (h *ExerciseRecordHandler) ListExerciseRecords(ctx context.Context, req *co
 	}
 
 	// Convert persistence models to protobuf messages
-	protoRecords := make([]*v1.ExerciseRecord, len(records)) // records is now []*postgres.ExerciseRecord
+	protoRecords := make([]*v1.ExerciseRecord, len(records)) // records is now []db.ExerciseRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoExerciseRecord(record) // Pass *postgres.ExerciseRecord
+		protoRecords[i] = toProtoExerciseRecord(record) // Pass db.ExerciseRecord
 	}
 
 	// Calculate pagination response
@@ -210,8 +224,8 @@ func (h *ExerciseRecordHandler) DeleteExerciseRecord(ctx context.Context, req *c
 	return res, nil
 }
 
-// toProtoExerciseRecord converts a postgres.ExerciseRecord to a v1.ExerciseRecord
-func toProtoExerciseRecord(record *postgres.ExerciseRecord) *v1.ExerciseRecord { // Accept *postgres.ExerciseRecord
+// toProtoExerciseRecord converts a db.ExerciseRecord (sqlc generated) to a v1.ExerciseRecord
+func toProtoExerciseRecord(record db.ExerciseRecord) *v1.ExerciseRecord { // Accept db.ExerciseRecord
 	protoRecord := &v1.ExerciseRecord{
 		Id:           record.ID.String(),
 		UserId:       record.UserID.String(),
@@ -221,13 +235,13 @@ func toProtoExerciseRecord(record *postgres.ExerciseRecord) *v1.ExerciseRecord {
 		UpdatedAt:    timestamppb.New(record.UpdatedAt),
 	}
 
-	// Handle optional fields
-	if record.DurationMinutes != nil {
-		protoRecord.DurationMinutes = &wrapperspb.Int32Value{Value: *record.DurationMinutes}
+	// Handle pgtype.Int4 for optional fields
+	if record.DurationMinutes.Valid {
+		protoRecord.DurationMinutes = &wrapperspb.Int32Value{Value: record.DurationMinutes.Int32}
 	}
 
-	if record.CaloriesBurned != nil {
-		protoRecord.CaloriesBurned = &wrapperspb.Int32Value{Value: *record.CaloriesBurned}
+	if record.CaloriesBurned.Valid {
+		protoRecord.CaloriesBurned = &wrapperspb.Int32Value{Value: record.CaloriesBurned.Int32}
 	}
 
 	return protoRecord

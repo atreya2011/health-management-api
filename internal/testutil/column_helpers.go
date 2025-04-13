@@ -59,67 +59,59 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("failed to delete existing columns: %w", err)
 	}
 
-	// Define mock columns
-	columns := []*postgres.Column{ // Use postgres.Column
+	// Define mock data directly
+	mockColumnsData := []struct {
+		ID          uuid.UUID
+		Title       string
+		Content     string
+		Category    string // Use string for simplicity, convert to pgtype.Text later
+		Tags        []string
+		PublishedAt time.Time // Use time.Time, convert to pgtype.Timestamptz later
+	}{
 		{
-			ID:      uuid.New(),
-			Title:   "Health Tips for Daily Life",
-			Content: "Content about health tips...",
-			Category: func() *string {
-				s := "health"
-				return &s
-			}(),
+			ID:          uuid.New(),
+			Title:       "Health Tips for Daily Life",
+			Content:     "Content about health tips...",
+			Category:    "health",
 			Tags:        []string{"health", "wellness"},
-			PublishedAt: func() *time.Time { t := time.Now().Add(-24 * time.Hour); return &t }(),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			PublishedAt: time.Now().Add(-24 * time.Hour),
 		},
 		{
-			ID:      uuid.New(),
-			Title:   "Diet Strategies for Weight Loss",
-			Content: "Content about diet strategies...",
-			Category: func() *string {
-				s := "nutrition"
-				return &s
-			}(),
+			ID:          uuid.New(),
+			Title:       "Diet Strategies for Weight Loss",
+			Content:     "Content about diet strategies...",
+			Category:    "nutrition",
 			Tags:        []string{"diet", "nutrition", "health"},
-			PublishedAt: func() *time.Time { t := time.Now().Add(-48 * time.Hour); return &t }(),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			PublishedAt: time.Now().Add(-48 * time.Hour),
 		},
 		{
-			ID:      uuid.New(),
-			Title:   "Exercise Routines for Beginners",
-			Content: "Content about exercise routines...",
-			Category: func() *string {
-				s := "fitness"
-				return &s
-			}(),
+			ID:          uuid.New(),
+			Title:       "Exercise Routines for Beginners",
+			Content:     "Content about exercise routines...",
+			Category:    "fitness",
 			Tags:        []string{"exercise", "fitness"},
-			PublishedAt: func() *time.Time { t := time.Now().Add(-72 * time.Hour); return &t }(),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			PublishedAt: time.Now().Add(-72 * time.Hour),
+		},
+		// Add an unpublished column for testing
+		{
+			ID:          uuid.New(),
+			Title:       "Future Health Trends",
+			Content:     "Content about future trends...",
+			Category:    "trends",
+			Tags:        []string{"future", "health"},
+			PublishedAt: time.Now().Add(24 * time.Hour), // Published in the future
 		},
 	}
 
 	// Insert mock columns using CreateTestColumn
-	for _, column := range columns {
-		// Convert domain types to pgtype types needed by CreateTestColumn
-		var categoryVal pgtype.Text
-		if column.Category != nil {
-			categoryVal = pgtype.Text{String: *column.Category, Valid: true}
-		}
+	for _, data := range mockColumnsData {
+		categoryVal := pgtype.Text{String: data.Category, Valid: data.Category != ""}
+		publishedAtVal := pgtype.Timestamptz{Time: data.PublishedAt.UTC(), Valid: !data.PublishedAt.IsZero()} // Ensure UTC
 
-		var publishedAtVal pgtype.Timestamptz
-		if column.PublishedAt != nil {
-			publishedAtVal = pgtype.Timestamptz{Time: column.PublishedAt.UTC(), Valid: true} // Ensure UTC
-		}
-
-		// Call CreateTestColumn for each mock column
-		err := CreateTestColumn(ctx, pool, column.ID, column.Title, column.Content, categoryVal, column.Tags, publishedAtVal)
+		err := CreateTestColumn(ctx, pool, data.ID, data.Title, data.Content, categoryVal, data.Tags, publishedAtVal)
 		if err != nil {
 			// Log or handle the error for the specific column creation failure
-			fmt.Printf("Warning: Failed to create mock column '%s' using CreateTestColumn: %v\n", column.Title, err)
+			fmt.Printf("Warning: Failed to create mock column '%s' using CreateTestColumn: %v\n", data.Title, err)
 		}
 	}
 

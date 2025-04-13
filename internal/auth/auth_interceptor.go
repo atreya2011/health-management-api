@@ -79,30 +79,17 @@ func AuthInterceptor(jwtConfig *JWTConfig, userRepo *postgres.PgUserRepository, 
 			}
 
 			// Find or create the user
-			user, err := userRepo.FindBySubjectID(ctx, sub)
+			// Find or create the user using the updated Create method
+			user, err := userRepo.Create(ctx, sub)
 			if err != nil {
-				if errors.Is(err, postgres.ErrUserNotFound) { // Use postgres error
-					// Create a new user
-					newUser := &postgres.User{ // Use postgres.User
-						SubjectID: sub,
-					}
-					if err := userRepo.Create(ctx, newUser); err != nil {
-						logger.ErrorContext(ctx, "Failed to create user", "subject_id", sub, "error", err)
-						return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create user"))
-					}
-					user, err = userRepo.FindBySubjectID(ctx, sub)
-					if err != nil {
-						logger.ErrorContext(ctx, "Failed to retrieve newly created user", "subject_id", sub, "error", err)
-						return nil, connect.NewError(connect.CodeInternal, errors.New("failed to retrieve user"))
-					}
-				} else {
-					logger.ErrorContext(ctx, "Failed to find user", "subject_id", sub, "error", err)
-					return nil, connect.NewError(connect.CodeInternal, errors.New("failed to retrieve user"))
-				}
+				// Create now handles the "already exists" case by returning the existing user.
+				// Any error returned here is likely a database issue or context cancellation.
+				logger.ErrorContext(ctx, "Failed to find or create user", "subject_id", sub, "error", err)
+				return nil, connect.NewError(connect.CodeInternal, errors.New("failed to retrieve or create user"))
 			}
 
 			// Add the user ID to the context
-			ctx = context.WithValue(ctx, UserContextKey, user.ID)
+			ctx = context.WithValue(ctx, UserContextKey, user.ID) // user is now db.User, which has ID
 
 			// Call the next handler with the authenticated context
 			return next(ctx, req)
