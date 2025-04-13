@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	db "github.com/atreya2011/health-management-api/internal/persistence/postgres/db"
+	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq" // Import the postgres driver
 	"github.com/ory/dockertest/v3"

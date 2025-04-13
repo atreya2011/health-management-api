@@ -7,7 +7,7 @@ import (
 	"time"
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	"github.com/atreya2011/health-management-api/internal/persistence/postgres"
+	postgres "github.com/atreya2011/health-management-api/internal/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"

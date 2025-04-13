@@ -9,8 +9,8 @@ import (
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/config"
+	postgres "github.com/atreya2011/health-management-api/internal/db"
 	applog "github.com/atreya2011/health-management-api/internal/log"
-	"github.com/atreya2011/health-management-api/internal/persistence/postgres"
 	"github.com/atreya2011/health-management-api/internal/testutil" // Added import
 )
 

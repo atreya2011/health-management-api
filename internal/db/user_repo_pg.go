@@ -7,7 +7,7 @@ import (
 	"time" // Added for User struct
 
 	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
-	db "github.com/atreya2011/health-management-api/internal/persistence/postgres/db"
+	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

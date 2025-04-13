@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	db "github.com/atreya2011/health-management-api/internal/persistence/postgres/db" // Added db import
+	db "github.com/atreya2011/health-management-api/internal/db/gen" // Added db import
 	"github.com/google/uuid"
 )
 

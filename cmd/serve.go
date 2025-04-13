@@ -20,8 +20,8 @@ import (
 	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	"github.com/atreya2011/health-management-api/internal/auth"
 	"github.com/atreya2011/health-management-api/internal/config"
+	postgres "github.com/atreya2011/health-management-api/internal/db"
 	applog "github.com/atreya2011/health-management-api/internal/log"
-	"github.com/atreya2011/health-management-api/internal/persistence/postgres"
 	"github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1/healthappv1connect"
 	"github.com/atreya2011/health-management-api/internal/rpc/handlers"
 )

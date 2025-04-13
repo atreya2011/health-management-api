@@ -6,7 +6,7 @@ configs/config.local.yaml
 bin/healthapp_server
 
 # Generated code (re-generate in CI/build)
-internal/persistence/postgres/db/
+internal/db/gen/
 internal/rpc/gen/
 third_party/openapi/
 
