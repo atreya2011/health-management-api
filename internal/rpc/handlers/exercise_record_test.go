@@ -31,10 +31,9 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
+	handler := NewExerciseRecordHandler(repo, logger)
 
 	// Test data
 	recordedAt := time.Now().UTC()
@@ -103,10 +102,9 @@ func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
+	handler := NewExerciseRecordHandler(repo, logger)
 
 	// Test data - invalid duration to trigger validation error
 	recordedAt := time.Now().UTC()
@@ -176,10 +174,9 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
+	handler := NewExerciseRecordHandler(repo, logger)
 
 	// Test parameters
 	pageSize := int32(10)
@@ -257,10 +254,9 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-	// service := application.NewExerciseRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger) // Changed from service
+	handler := NewExerciseRecordHandler(repo, logger)
 
 	// Create a request
 	req := connect.NewRequest(&v1.DeleteExerciseRecordRequest{

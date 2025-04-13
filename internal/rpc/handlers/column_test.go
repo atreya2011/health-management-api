@@ -57,8 +57,7 @@ func setupHandler(testDB *testutil.TestDatabase) (*ColumnHandler, context.Contex
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx := context.Background()
 	repo := testutil.NewColumnRepository(testDB.Pool)
-	// service := application.NewColumnService(repo, logger) // Removed
-	handler := NewColumnHandler(repo, logger) // Changed from service
+	handler := NewColumnHandler(repo, logger)
 	return handler, ctx
 }
 

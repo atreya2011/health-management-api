@@ -46,10 +46,9 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	// service := application.NewBodyRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewBodyRecordHandler(repo, logger) // Changed from service
+	handler := NewBodyRecordHandler(repo, logger)
 
 	// Test data
 	date := time.Now().UTC().Truncate(24 * time.Hour)
@@ -110,10 +109,9 @@ func TestBodyRecordHandler_CreateBodyRecord_Error(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	// service := application.NewBodyRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewBodyRecordHandler(repo, logger) // Changed from service
+	handler := NewBodyRecordHandler(repo, logger)
 
 	// Test data - invalid weight to trigger validation error
 	date := time.Now().UTC().Truncate(24 * time.Hour)
@@ -180,10 +178,9 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	// service := application.NewBodyRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewBodyRecordHandler(repo, logger) // Changed from service
+	handler := NewBodyRecordHandler(repo, logger)
 
 	// Test parameters
 	pageSize := int32(10)
@@ -276,10 +273,9 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewBodyRecordRepository(testDB.Pool)
-	// service := application.NewBodyRecordService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewBodyRecordHandler(repo, logger) // Changed from service
+	handler := NewBodyRecordHandler(repo, logger)
 
 	// Test date range (last 3 days)
 	startDate := today.Add(-3 * 24 * time.Hour)

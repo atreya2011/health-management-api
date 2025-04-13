@@ -30,10 +30,9 @@ func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	// service := application.NewDiaryService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger) // Changed from service
+	handler := NewDiaryHandler(repo, logger)
 
 	// Test data
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
@@ -110,10 +109,9 @@ func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	// service := application.NewDiaryService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger) // Changed from service
+	handler := NewDiaryHandler(repo, logger)
 
 	// Updated data
 	updatedTitle := "Updated Title"
@@ -185,10 +183,9 @@ func TestDiaryHandler_GetDiaryEntry(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	// service := application.NewDiaryService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger) // Changed from service
+	handler := NewDiaryHandler(repo, logger)
 
 	// Create a request
 	req := connect.NewRequest(&v1.GetDiaryEntryRequest{
@@ -258,10 +255,9 @@ func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	// service := application.NewDiaryService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger) // Changed from service
+	handler := NewDiaryHandler(repo, logger)
 
 	// Test parameters
 	pageSize := int32(10)
@@ -339,10 +335,9 @@ func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
 
 	// Create a real repository
 	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-	// service := application.NewDiaryService(repo, logger) // Removed
 
 	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger) // Changed from service
+	handler := NewDiaryHandler(repo, logger)
 
 	// Create a request
 	req := connect.NewRequest(&v1.DeleteDiaryEntryRequest{
