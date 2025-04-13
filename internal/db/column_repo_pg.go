@@ -2,16 +2,14 @@ package postgres
 
 import (
 	"context"
-	"errors" // Use standard errors
+	"errors"
 	"fmt"
-	// "time" // Removed, no longer needed here
 
 	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	// "github.com/pkg/errors" // Removed, use fmt.Errorf with %w
 )
 
 // ErrColumnNotFound is returned when a column is not found

@@ -7,14 +7,12 @@ import (
 	"log/slog"
 	"time"
 
-	"strings" // Added for validation
+	"strings"
 
 	"connectrpc.com/connect"
-	// "github.com/atreya2011/health-management-api/internal/application" // Removed
-	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/auth"
-	postgres "github.com/atreya2011/health-management-api/internal/db" // Added
-	db "github.com/atreya2011/health-management-api/internal/db/gen"    // Use this alias
+	postgres "github.com/atreya2011/health-management-api/internal/db"
+	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -113,7 +111,6 @@ func (h *DiaryHandler) UpdateDiaryEntry(ctx context.Context, req *connect.Reques
 	var title *string
 	if req.Msg.Title != nil {
 		t := req.Msg.Title.Value
-		title = &t
 		title = &t
 	}
 

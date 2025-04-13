@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"github.com/google/uuid"

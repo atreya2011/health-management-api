@@ -8,11 +8,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	// "github.com/atreya2011/health-management-api/internal/application" // Removed
-	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	"github.com/atreya2011/health-management-api/internal/auth"
-	postgres "github.com/atreya2011/health-management-api/internal/db" // Added
-	db "github.com/atreya2011/health-management-api/internal/db/gen"    // Added for gen types
+	postgres "github.com/atreya2011/health-management-api/internal/db"
+	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"

@@ -16,8 +16,6 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
-	// App imports
-	// "github.com/atreya2011/health-management-api/internal/application" // Removed
 	"github.com/atreya2011/health-management-api/internal/auth"
 	"github.com/atreya2011/health-management-api/internal/config"
 	postgres "github.com/atreya2011/health-management-api/internal/db"

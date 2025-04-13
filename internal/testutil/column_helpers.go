@@ -2,11 +2,9 @@ package testutil
 
 import (
 	"context"
-	// "database/sql" // Removed unused import
 	"fmt"
 	"time"
 
-	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	postgres "github.com/atreya2011/health-management-api/internal/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"

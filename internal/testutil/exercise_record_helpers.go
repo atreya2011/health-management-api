@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	postgres "github.com/atreya2011/health-management-api/internal/db"
 	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	"github.com/google/uuid"

@@ -2,17 +2,15 @@ package postgres
 
 import (
 	"context"
-	"errors" // Use standard errors
+	"errors"
 	"fmt"
-	"time" // Keep for RecordedAt input
+	"time"
 
-	// "github.com/atreya2011/health-management-api/internal/domain" // Removed
 	db "github.com/atreya2011/health-management-api/internal/db/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	// "github.com/pkg/errors" // Removed, use fmt.Errorf with %w
 )
 
 // ErrExerciseRecordNotFound is returned when an exercise record is not found
