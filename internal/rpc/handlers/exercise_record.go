@@ -203,13 +203,15 @@ func (h *ExerciseRecordHandler) DeleteExerciseRecord(ctx context.Context, req *c
 
 	// Call repository directly
 	h.log.InfoContext(ctx, "Deleting exercise record", "recordID", recordID, "userID", userID)
-	err = h.repo.Delete(ctx, recordID, userID) // Changed from exerciseApp.DeleteExerciseRecord
+	err = h.repo.Delete(ctx, recordID, userID)
 	if err != nil {
-		// Note: Delete doesn't return ErrExerciseRecordNotFound in the repo implementation currently
-		// if errors.Is(err, repo.ErrExerciseRecordNotFound) { // Use postgres error
-		// 	h.log.WarnContext(ctx, "Exercise record not found for deletion", "recordID", recordID, "userID", userID)
-		// 	return nil, connect.NewError(connect.CodeNotFound, errors.New("exercise record not found"))
-		// }
+		// Check if the error is ErrExerciseRecordNotFound from the repository
+		if errors.Is(err, repo.ErrExerciseRecordNotFound) {
+			h.log.WarnContext(ctx, "Exercise record not found or not owned by user during deletion", "recordID", recordID, "userID", userID)
+			// Return NotFound error to the client
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("exercise record not found"))
+		}
+		// Handle other potential errors
 		h.log.ErrorContext(ctx, "Failed to delete exercise record", "recordID", recordID, "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to delete exercise record"))
 	}

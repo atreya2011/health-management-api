@@ -281,13 +281,15 @@ func (h *DiaryHandler) DeleteDiaryEntry(ctx context.Context, req *connect.Reques
 
 	// Call repository directly
 	h.log.InfoContext(ctx, "Deleting diary entry", "entryID", entryID, "userID", userID)
-	err = h.repo.Delete(ctx, entryID, userID) // Changed from diaryApp.DeleteDiaryEntry
+	err = h.repo.Delete(ctx, entryID, userID)
 	if err != nil {
-		// Note: Delete doesn't return ErrDiaryEntryNotFound in the repo implementation currently
-		// if errors.Is(err, repo.ErrDiaryEntryNotFound) {
-		// 	h.log.WarnContext(ctx, "Diary entry not found for deletion", "entryID", entryID, "userID", userID)
-		// 	return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
-		// }
+		// Check if the error is ErrDiaryEntryNotFound from the repository
+		if errors.Is(err, repo.ErrDiaryEntryNotFound) {
+			h.log.WarnContext(ctx, "Diary entry not found or not owned by user during deletion", "entryID", entryID, "userID", userID)
+			// Return NotFound error to the client
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
+		}
+		// Handle other potential errors
 		h.log.ErrorContext(ctx, "Failed to delete diary entry", "entryID", entryID, "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to delete diary entry"))
 	}

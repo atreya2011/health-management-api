@@ -86,11 +86,10 @@ func (r *ExerciseRecordRepository) Delete(ctx context.Context, id, userID uuid.U
 	err := r.q.DeleteExerciseRecord(ctx, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Consider returning ErrExerciseRecordNotFound here too for consistency?
-			// For now, matching original behavior which returned nil on no rows for delete.
-			return nil
+			// If no rows were deleted (record not found or doesn't belong to user), return specific error.
+			return ErrExerciseRecordNotFound
 		}
-		return fmt.Errorf("failed to delete exercise record: %w", err) // Use fmt.Errorf
+		return fmt.Errorf("failed to delete exercise record: %w", err)
 	}
 
 	return nil

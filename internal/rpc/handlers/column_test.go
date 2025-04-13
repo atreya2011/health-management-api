@@ -11,9 +11,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID, uuid.UUID, string, string) {
+	t.Helper() // Mark as test helper
 	now := time.Now()
 	publishedAt := now.Add(-24 * time.Hour)
 	futureDate := now.Add(24 * time.Hour)
@@ -24,9 +27,7 @@ func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uu
 		pgtype.Text{String: category1, Valid: true},
 		[]string{"diet", "exercise"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
-	if err != nil {
-		t.Fatalf("Failed to create test column: %v", err)
-	}
+	require.NoError(t, err, "Failed to create test column 1")
 
 	column2ID := uuid.New()
 	category2 := "nutrition"
@@ -34,194 +35,260 @@ func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uu
 		pgtype.Text{String: category2, Valid: true},
 		[]string{"diet", "food"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
-	if err != nil {
-		t.Fatalf("Failed to create test column: %v", err)
-	}
+	require.NoError(t, err, "Failed to create test column 2")
 
 	column3ID := uuid.New()
 	err = testutil.CreateTestColumn(ctx, pool, column3ID, "Unpublished Column", "This should not appear",
 		pgtype.Text{String: "health", Valid: true},
 		[]string{"diet"},
 		pgtype.Timestamptz{Time: futureDate, Valid: true})
-	if err != nil {
-		t.Fatalf("Failed to create test column: %v", err)
-	}
+	require.NoError(t, err, "Failed to create unpublished column")
 
 	return column1ID, column2ID, column3ID, category1, category2
 }
 
-
 func TestColumnHandler_ListPublishedColumns(t *testing.T) {
 	resetDB(t, testPool)
-
 	repo := testutil.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
-
 	setupTestColumns(t, ctx, testPool)
 
-	// Test ListPublishedColumns
-	req := connect.NewRequest(&v1.ListPublishedColumnsRequest{
-		Pagination: &v1.PageRequest{
-			PageSize:   10,
-			PageNumber: 1,
+	testCases := []struct {
+		name        string
+		req         *v1.ListPublishedColumnsRequest
+		expectLen   int
+		expectTotal int32
+		expectPage  int32
+	}{
+		{
+			name: "Default Pagination",
+			req: &v1.ListPublishedColumnsRequest{
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   2, // Only published columns
+			expectTotal: 2,
+			expectPage:  1,
 		},
-	})
-
-	resp, err := handler.ListPublishedColumns(ctx, req)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		{
+			name: "Pagination - Page 1 Size 1",
+			req: &v1.ListPublishedColumnsRequest{
+				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 1},
+			},
+			expectLen:   1,
+			expectTotal: 2,
+			expectPage:  1,
+		},
+		{
+			name: "Pagination - Page 2 Size 1",
+			req: &v1.ListPublishedColumnsRequest{
+				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 2},
+			},
+			expectLen:   1,
+			expectTotal: 2,
+			expectPage:  2,
+		},
 	}
 
-	if resp.Msg.Pagination.TotalItems != 2 {
-		t.Errorf("Expected count 2, got %d", resp.Msg.Pagination.TotalItems)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := connect.NewRequest(tc.req)
+			resp, err := handler.ListPublishedColumns(ctx, req)
 
-	if len(resp.Msg.Columns) != 2 {
-		t.Errorf("Expected 2 columns, got %d", len(resp.Msg.Columns))
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.NotNil(t, resp.Msg)
+			assert.Len(t, resp.Msg.Columns, tc.expectLen)
+			require.NotNil(t, resp.Msg.Pagination)
+			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
+			assert.Equal(t, tc.expectPage, resp.Msg.Pagination.CurrentPage)
+		})
 	}
 }
+
 func TestColumnHandler_GetColumn(t *testing.T) {
 	resetDB(t, testPool)
-
 	repo := testutil.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
-
 	column1ID, _, column3ID, _, _ := setupTestColumns(t, ctx, testPool)
-
-	// Test GetColumn with a published column
-	getReq := connect.NewRequest(&v1.GetColumnRequest{
-		Id: column1ID.String(),
-	})
-
-	getResp, err := handler.GetColumn(ctx, getReq)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	if getResp.Msg.Column == nil {
-		t.Fatal("Expected column, got nil")
-	}
-
-	if getResp.Msg.Column.Id != column1ID.String() {
-		t.Errorf("Expected ID %v, got %v", column1ID.String(), getResp.Msg.Column.Id)
-	}
-
-	if getResp.Msg.Column.Title != "Test Column 1" {
-		t.Errorf("Expected title 'Test Column 1', got '%s'", getResp.Msg.Column.Title)
-	}
-
-	// Test GetColumn with an unpublished column (should return not found)
-	getUnpublishedReq := connect.NewRequest(&v1.GetColumnRequest{
-		Id: column3ID.String(),
-	})
-
-	_, err = handler.GetColumn(ctx, getUnpublishedReq)
-	if err == nil {
-		t.Error("Expected error for unpublished column, got nil")
-	}
-
-	// Test GetColumn with non-existent ID
 	nonExistentID := uuid.New()
-	nonExistentReq := connect.NewRequest(&v1.GetColumnRequest{
-		Id: nonExistentID.String(),
-	})
 
-	_, err = handler.GetColumn(ctx, nonExistentReq)
-	if err == nil {
-		t.Error("Expected error for non-existent column, got nil")
+	testCases := []struct {
+		name        string
+		req         *v1.GetColumnRequest
+		expectError bool
+		verify      func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error)
+	}{
+		{
+			name: "Success - Get Published Column",
+			req:  &v1.GetColumnRequest{Id: column1ID.String()},
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+				require.NotNil(t, resp.Msg.Column)
+				assert.Equal(t, column1ID.String(), resp.Msg.Column.Id)
+				assert.Equal(t, "Test Column 1", resp.Msg.Column.Title)
+			},
+		},
+		{
+			name: "Error - Get Unpublished Column",
+			req:  &v1.GetColumnRequest{Id: column3ID.String()},
+			expectError: true,
+			verify: func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error) {
+				require.Error(t, err) // Expecting a 'not found' or similar error
+				assert.Nil(t, resp)
+			},
+		},
+		{
+			name: "Error - Get Non-existent Column",
+			req:  &v1.GetColumnRequest{Id: nonExistentID.String()},
+			expectError: true,
+			verify: func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error) {
+				require.Error(t, err) // Expecting a 'not found' or similar error
+				assert.Nil(t, resp)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := connect.NewRequest(tc.req)
+			resp, err := handler.GetColumn(ctx, req)
+			tc.verify(t, resp, err)
+		})
 	}
 }
+
 func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
 	resetDB(t, testPool)
-
 	repo := testutil.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
+	_, _, _, category1, category2 := setupTestColumns(t, ctx, testPool)
 
-	_, _, _, category1, _ := setupTestColumns(t, ctx, testPool)
-
-	// Test ListColumnsByCategory
-	categoryReq := connect.NewRequest(&v1.ListColumnsByCategoryRequest{
-		Category: category1,
-		Pagination: &v1.PageRequest{
-			PageSize:   10,
-			PageNumber: 1,
+	testCases := []struct {
+		name        string
+		req         *v1.ListColumnsByCategoryRequest
+		expectLen   int
+		expectTotal int32
+		expectCat   string
+	}{
+		{
+			name: "List by Category 1",
+			req: &v1.ListColumnsByCategoryRequest{
+				Category:   category1,
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   1,
+			expectTotal: 1,
+			expectCat:   category1,
 		},
-	})
-
-	categoryResp, err := handler.ListColumnsByCategory(ctx, categoryReq)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		{
+			name: "List by Category 2",
+			req: &v1.ListColumnsByCategoryRequest{
+				Category:   category2,
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   1,
+			expectTotal: 1,
+			expectCat:   category2,
+		},
+		{
+			name: "List by Non-existent Category",
+			req: &v1.ListColumnsByCategoryRequest{
+				Category:   "nonexistent",
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   0,
+			expectTotal: 0,
+			expectCat:   "", // Not applicable
+		},
 	}
 
-	if categoryResp.Msg.Pagination.TotalItems != 1 {
-		t.Errorf("Expected count 1, got %d", categoryResp.Msg.Pagination.TotalItems)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := connect.NewRequest(tc.req)
+			resp, err := handler.ListColumnsByCategory(ctx, req)
 
-	if len(categoryResp.Msg.Columns) != 1 {
-		t.Errorf("Expected 1 column, got %d", len(categoryResp.Msg.Columns))
-	}
-
-	if categoryResp.Msg.Columns[0].Category == nil || categoryResp.Msg.Columns[0].Category.Value != category1 {
-		t.Errorf("Expected category '%s', got '%v'", category1,
-			categoryResp.Msg.Columns[0].Category)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.NotNil(t, resp.Msg)
+			assert.Len(t, resp.Msg.Columns, tc.expectLen)
+			require.NotNil(t, resp.Msg.Pagination)
+			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
+			if tc.expectLen > 0 {
+				require.NotNil(t, resp.Msg.Columns[0].Category)
+				assert.Equal(t, tc.expectCat, resp.Msg.Columns[0].Category.Value)
+			}
+		})
 	}
 }
+
 func TestColumnHandler_ListColumnsByTag(t *testing.T) {
 	resetDB(t, testPool)
-
 	repo := testutil.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
-
 	setupTestColumns(t, ctx, testPool)
 
-	// Test ListColumnsByTag
-	tag := "diet"
-	tagReq := connect.NewRequest(&v1.ListColumnsByTagRequest{
-		Tag: tag,
-		Pagination: &v1.PageRequest{
-			PageSize:   10,
-			PageNumber: 1,
+	testCases := []struct {
+		name        string
+		req         *v1.ListColumnsByTagRequest
+		expectLen   int
+		expectTotal int32
+	}{
+		{
+			name: "List by Tag 'diet'",
+			req: &v1.ListColumnsByTagRequest{
+				Tag:        "diet",
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   2, // Both published columns have 'diet'
+			expectTotal: 2,
 		},
-	})
-
-	tagResp, err := handler.ListColumnsByTag(ctx, tagReq)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	// We should have 2 published columns with the "diet" tag
-	if tagResp.Msg.Pagination.TotalItems != 2 {
-		t.Errorf("Expected count 2, got %d", tagResp.Msg.Pagination.TotalItems)
-	}
-
-	if len(tagResp.Msg.Columns) != 2 {
-		t.Errorf("Expected 2 columns, got %d", len(tagResp.Msg.Columns))
-	}
-
-	// Test with a tag that doesn't exist
-	nonExistentTag := "nonexistent"
-	nonExistentTagReq := connect.NewRequest(&v1.ListColumnsByTagRequest{
-		Tag: nonExistentTag,
-		Pagination: &v1.PageRequest{
-			PageSize:   10,
-			PageNumber: 1,
+		{
+			name: "List by Tag 'exercise'",
+			req: &v1.ListColumnsByTagRequest{
+				Tag:        "exercise",
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   1,
+			expectTotal: 1,
 		},
-	})
-
-	nonExistentTagResp, err := handler.ListColumnsByTag(ctx, nonExistentTagReq)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		{
+			name: "List by Tag 'food'",
+			req: &v1.ListColumnsByTagRequest{
+				Tag:        "food",
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   1,
+			expectTotal: 1,
+		},
+		{
+			name: "List by Non-existent Tag",
+			req: &v1.ListColumnsByTagRequest{
+				Tag:        "nonexistent",
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   0,
+			expectTotal: 0,
+		},
 	}
 
-	if nonExistentTagResp.Msg.Pagination.TotalItems != 0 {
-		t.Errorf("Expected count 0, got %d", nonExistentTagResp.Msg.Pagination.TotalItems)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := connect.NewRequest(tc.req)
+			resp, err := handler.ListColumnsByTag(ctx, req)
 
-	if len(nonExistentTagResp.Msg.Columns) != 0 {
-		t.Errorf("Expected 0 columns, got %d", len(nonExistentTagResp.Msg.Columns))
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.NotNil(t, resp.Msg)
+			assert.Len(t, resp.Msg.Columns, tc.expectLen)
+			require.NotNil(t, resp.Msg.Pagination)
+			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
+		})
 	}
 }

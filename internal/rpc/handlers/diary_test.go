@@ -8,270 +8,490 @@ import (
 	"connectrpc.com/connect"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
-	resetDB(t, testPool)
-
-	repo := testutil.NewDiaryEntryRepository(testPool)
-	handler := NewDiaryHandler(repo, testLogger)
-	ctx := context.Background()
-
-	// Test data
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
-	title := "Test Diary Entry"
-	content := "This is a test diary entry content."
+	entryDateStr := entryDate.Format("2006-01-02")
 
-	// Create a request
-	req := connect.NewRequest(&v1.CreateDiaryEntryRequest{
-		Title:     &wrapperspb.StringValue{Value: title},
-		Content:   content,
-		EntryDate: entryDate.Format("2006-01-02"),
-	})
-
-	testCtx := newTestContext(ctx)
-
-	resp, err := handler.CreateDiaryEntry(testCtx, req)
-
-	// Check for errors
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+	testCases := []struct {
+		name        string
+		req         *v1.CreateDiaryEntryRequest
+		expectError bool
+		verify      func(t *testing.T, resp *connect.Response[v1.CreateDiaryEntryResponse], err error)
+	}{
+		{
+			name: "Success - Full Entry",
+			req: &v1.CreateDiaryEntryRequest{
+				Title:     wrapperspb.String("Test Diary Entry"),
+				Content:   "This is a test diary entry content.",
+				EntryDate: entryDateStr,
+			},
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.CreateDiaryEntryResponse], err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+				require.NotNil(t, resp.Msg.DiaryEntry)
+				assert.Equal(t, testUserID.String(), resp.Msg.DiaryEntry.UserId)
+				assert.Equal(t, entryDateStr, resp.Msg.DiaryEntry.EntryDate)
+				require.NotNil(t, resp.Msg.DiaryEntry.Title)
+				assert.Equal(t, "Test Diary Entry", resp.Msg.DiaryEntry.Title.Value)
+				assert.Equal(t, "This is a test diary entry content.", resp.Msg.DiaryEntry.Content)
+			},
+		},
+		{
+			name: "Success - No Title",
+			req: &v1.CreateDiaryEntryRequest{
+				Title:     nil, // No title provided
+				Content:   "Content without a title.",
+				EntryDate: entryDateStr,
+			},
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.CreateDiaryEntryResponse], err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg.DiaryEntry)
+				assert.Nil(t, resp.Msg.DiaryEntry.Title)
+				assert.Equal(t, "Content without a title.", resp.Msg.DiaryEntry.Content)
+			},
+		},
+		{
+			name: "Error - Missing Content", // Assuming content is required by validation
+			req: &v1.CreateDiaryEntryRequest{
+				Title:     wrapperspb.String("Title Only"),
+				Content:   "", // Empty content
+				EntryDate: entryDateStr,
+			},
+			expectError: true, // Expect validation error
+			verify: func(t *testing.T, resp *connect.Response[v1.CreateDiaryEntryResponse], err error) {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			},
+		},
+		{
+			name: "Error - Invalid Date Format",
+			req: &v1.CreateDiaryEntryRequest{
+				Title:     wrapperspb.String("Bad Date"),
+				Content:   "Some content",
+				EntryDate: "2023/01/01", // Invalid format
+			},
+			expectError: true, // Expect date parsing error
+			verify: func(t *testing.T, resp *connect.Response[v1.CreateDiaryEntryResponse], err error) {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			},
+		},
 	}
 
-	// Verify the response
-	if resp == nil || resp.Msg == nil || resp.Msg.DiaryEntry == nil {
-		t.Fatal("Expected response with diary entry, got nil")
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resetDB(t, testPool)
+			repo := testutil.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(repo, testLogger)
+			ctx := context.Background()
+			testCtx := newTestContext(ctx)
 
-	if resp.Msg.DiaryEntry.UserId != testUserID.String() {
-		t.Errorf("Expected UserID %v, got %v", testUserID.String(), resp.Msg.DiaryEntry.UserId)
-	}
+			req := connect.NewRequest(tc.req)
+			resp, err := handler.CreateDiaryEntry(testCtx, req)
 
-	if resp.Msg.DiaryEntry.EntryDate != entryDate.Format("2006-01-02") {
-		t.Errorf("Expected EntryDate %v, got %v", entryDate.Format("2006-01-02"), resp.Msg.DiaryEntry.EntryDate)
-	}
-
-	if resp.Msg.DiaryEntry.Title == nil || resp.Msg.DiaryEntry.Title.Value != title {
-		t.Errorf("Expected Title %v, got %v", title, resp.Msg.DiaryEntry.Title)
-	}
-
-	if resp.Msg.DiaryEntry.Content != content {
-		t.Errorf("Expected Content %v, got %v", content, resp.Msg.DiaryEntry.Content)
+			tc.verify(t, resp, err)
+		})
 	}
 }
+
 func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
-	resetDB(t, testPool)
-	ctx := context.Background()
-
-	// Create a test diary entry
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
-	title := "Original Title"
-	content := "Original content."
+	originalTitle := "Original Title"
+	originalContent := "Original content."
 
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, title, content, entryDate)
-	if err != nil {
-		t.Fatalf("Failed to create test diary entry: %v", err)
+	testCases := []struct {
+		name        string
+		setup       func(t *testing.T, ctx context.Context) uuid.UUID // Returns the ID of the entry to update
+		req         *v1.UpdateDiaryEntryRequest
+		expectError bool
+		verify      func(t *testing.T, resp *connect.Response[v1.UpdateDiaryEntryResponse], err error, entryID uuid.UUID)
+	}{
+		{
+			name: "Success - Update Title and Content",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate)
+				require.NoError(t, err)
+				return entryID
+			},
+			req: &v1.UpdateDiaryEntryRequest{
+				// ID will be set dynamically in the loop
+				Title:   wrapperspb.String("Updated Title"),
+				Content: "Updated content.",
+			},
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.UpdateDiaryEntryResponse], err error, entryID uuid.UUID) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+				require.NotNil(t, resp.Msg.DiaryEntry)
+				assert.Equal(t, entryID.String(), resp.Msg.DiaryEntry.Id)
+				require.NotNil(t, resp.Msg.DiaryEntry.Title)
+				assert.Equal(t, "Updated Title", resp.Msg.DiaryEntry.Title.Value)
+				assert.Equal(t, "Updated content.", resp.Msg.DiaryEntry.Content)
+				// Ensure date and user ID remain unchanged
+				assert.Equal(t, entryDate.Format("2006-01-02"), resp.Msg.DiaryEntry.EntryDate)
+				assert.Equal(t, testUserID.String(), resp.Msg.DiaryEntry.UserId)
+			},
+		},
+		{
+			name: "Success - Update Only Title",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate)
+				require.NoError(t, err)
+				return entryID
+			},
+			req: &v1.UpdateDiaryEntryRequest{
+				Title: wrapperspb.String("New Title Only"),
+				Content: originalContent, // Include original content to pass validation if needed
+			},
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.UpdateDiaryEntryResponse], err error, entryID uuid.UUID) {
+				require.NoError(t, err, "UpdateDiaryEntry failed unexpectedly")
+
+				// Fetch the entry again to verify the actual state
+				handler := NewDiaryHandler(testutil.NewDiaryEntryRepository(testPool), testLogger)
+				getReq := connect.NewRequest(&v1.GetDiaryEntryRequest{Id: entryID.String()})
+				getResp, getErr := handler.GetDiaryEntry(newTestContext(context.Background()), getReq)
+
+				require.NoError(t, getErr, "Failed to get entry after update")
+				require.NotNil(t, getResp)
+				require.NotNil(t, getResp.Msg)
+				require.NotNil(t, getResp.Msg.DiaryEntry)
+				require.NotNil(t, getResp.Msg.DiaryEntry.Title)
+				assert.Equal(t, "New Title Only", getResp.Msg.DiaryEntry.Title.Value)
+				assert.Equal(t, originalContent, getResp.Msg.DiaryEntry.Content) // Content should remain original
+			},
+		},
+		{
+			name: "Success - Update Only Content",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate)
+				require.NoError(t, err)
+				return entryID
+			},
+			req: &v1.UpdateDiaryEntryRequest{
+				Content: "New Content Only",
+				Title: wrapperspb.String(originalTitle), // Include original title
+			},
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.UpdateDiaryEntryResponse], err error, entryID uuid.UUID) {
+				require.NoError(t, err, "UpdateDiaryEntry failed unexpectedly")
+
+				// Fetch the entry again to verify the actual state
+				handler := NewDiaryHandler(testutil.NewDiaryEntryRepository(testPool), testLogger)
+				getReq := connect.NewRequest(&v1.GetDiaryEntryRequest{Id: entryID.String()})
+				getResp, getErr := handler.GetDiaryEntry(newTestContext(context.Background()), getReq)
+
+				require.NoError(t, getErr, "Failed to get entry after update")
+				require.NotNil(t, getResp)
+				require.NotNil(t, getResp.Msg)
+				require.NotNil(t, getResp.Msg.DiaryEntry)
+				require.NotNil(t, getResp.Msg.DiaryEntry.Title)
+				assert.Equal(t, originalTitle, getResp.Msg.DiaryEntry.Title.Value) // Title should remain original
+				assert.Equal(t, "New Content Only", getResp.Msg.DiaryEntry.Content)
+			},
+		},
+		{
+			name: "Error - Update Non-existent Entry",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				// No setup needed, use a random ID
+				return uuid.New()
+			},
+			req: &v1.UpdateDiaryEntryRequest{
+				Title:   wrapperspb.String("Doesn't Matter"),
+				Content: "Doesn't Matter",
+			},
+			expectError: true,
+			verify: func(t *testing.T, resp *connect.Response[v1.UpdateDiaryEntryResponse], err error, entryID uuid.UUID) {
+				require.Error(t, err) // Expect not found error
+				assert.Nil(t, resp)
+			},
+		},
+		{
+			name: "Error - Invalid ID Format",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				// No setup needed
+				return uuid.Nil // Return Nil UUID as placeholder, actual invalid ID is in req
+			},
+			req: &v1.UpdateDiaryEntryRequest{
+				Id:      "invalid-uuid",
+				Title:   wrapperspb.String("Doesn't Matter"),
+				Content: "Doesn't Matter",
+			},
+			expectError: true,
+			verify: func(t *testing.T, resp *connect.Response[v1.UpdateDiaryEntryResponse], err error, entryID uuid.UUID) {
+				require.Error(t, err) // Expect invalid argument error
+				assert.Nil(t, resp)
+			},
+		},
 	}
 
-	repo := testutil.NewDiaryEntryRepository(testPool)
-	handler := NewDiaryHandler(repo, testLogger)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resetDB(t, testPool)
+			repo := testutil.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(repo, testLogger)
+			ctx := context.Background()
+			testCtx := newTestContext(ctx)
 
-	// Updated data
-	updatedTitle := "Updated Title"
-	updatedContent := "Updated content."
+			entryID := tc.setup(t, ctx)
+			req := connect.NewRequest(tc.req)
+			// Set the ID in the request if it wasn't invalid format test
+			if tc.req.Id == "" {
+				req.Msg.Id = entryID.String()
+			}
 
-	// Create a request
-	req := connect.NewRequest(&v1.UpdateDiaryEntryRequest{
-		Id:      entryID.String(),
-		Title:   &wrapperspb.StringValue{Value: updatedTitle},
-		Content: updatedContent,
-	})
-
-	testCtx := newTestContext(ctx)
-
-	resp, err := handler.UpdateDiaryEntry(testCtx, req)
-
-	// Check for errors
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	// Verify the response
-	if resp == nil || resp.Msg == nil || resp.Msg.DiaryEntry == nil {
-		t.Fatal("Expected response with diary entry, got nil")
-	}
-
-	if resp.Msg.DiaryEntry.Id != entryID.String() {
-		t.Errorf("Expected ID %v, got %v", entryID.String(), resp.Msg.DiaryEntry.Id)
-	}
-
-	if resp.Msg.DiaryEntry.Title == nil || resp.Msg.DiaryEntry.Title.Value != updatedTitle {
-		t.Errorf("Expected Title %v, got %v", updatedTitle, resp.Msg.DiaryEntry.Title)
-	}
-
-	if resp.Msg.DiaryEntry.Content != updatedContent {
-		t.Errorf("Expected Content %v, got %v", updatedContent, resp.Msg.DiaryEntry.Content)
+			resp, err := handler.UpdateDiaryEntry(testCtx, req)
+			tc.verify(t, resp, err, entryID)
+		})
 	}
 }
+
 func TestDiaryHandler_GetDiaryEntry(t *testing.T) {
-	resetDB(t, testPool)
-	ctx := context.Background()
-
-	// Create a test diary entry
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
-	title := "Test Title"
-	content := "Test content."
+	testTitle := "Test Title"
+	testContent := "Test content."
 
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, title, content, entryDate)
-	if err != nil {
-		t.Fatalf("Failed to create test diary entry: %v", err)
+	testCases := []struct {
+		name        string
+		setup       func(t *testing.T, ctx context.Context) uuid.UUID // Returns the ID of the entry to get
+		reqID       func(entryID uuid.UUID) string                    // Function to generate request ID string
+		expectError bool
+		verify      func(t *testing.T, resp *connect.Response[v1.GetDiaryEntryResponse], err error)
+	}{
+		{
+			name: "Success - Get Existing Entry",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, testTitle, testContent, entryDate)
+				require.NoError(t, err)
+				return entryID
+			},
+			reqID: func(entryID uuid.UUID) string { return entryID.String() },
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.GetDiaryEntryResponse], err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+				require.NotNil(t, resp.Msg.DiaryEntry)
+				// ID check happens implicitly via setup/reqID
+				require.NotNil(t, resp.Msg.DiaryEntry.Title)
+				assert.Equal(t, testTitle, resp.Msg.DiaryEntry.Title.Value)
+				assert.Equal(t, testContent, resp.Msg.DiaryEntry.Content)
+				assert.Equal(t, entryDate.Format("2006-01-02"), resp.Msg.DiaryEntry.EntryDate)
+				assert.Equal(t, testUserID.String(), resp.Msg.DiaryEntry.UserId)
+			},
+		},
+		{
+			name: "Error - Get Non-existent Entry",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				// No setup needed, just generate a random ID
+				return uuid.New()
+			},
+			reqID: func(entryID uuid.UUID) string { return entryID.String() },
+			expectError: true,
+			verify: func(t *testing.T, resp *connect.Response[v1.GetDiaryEntryResponse], err error) {
+				require.Error(t, err) // Expect not found error
+				assert.Nil(t, resp)
+			},
+		},
+		{
+			name: "Error - Invalid ID Format",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				return uuid.Nil // Placeholder, not used
+			},
+			reqID: func(entryID uuid.UUID) string { return "invalid-uuid" },
+			expectError: true,
+			verify: func(t *testing.T, resp *connect.Response[v1.GetDiaryEntryResponse], err error) {
+				require.Error(t, err) // Expect invalid argument error
+				assert.Nil(t, resp)
+			},
+		},
 	}
 
-	repo := testutil.NewDiaryEntryRepository(testPool)
-	handler := NewDiaryHandler(repo, testLogger)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resetDB(t, testPool)
+			repo := testutil.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(repo, testLogger)
+			ctx := context.Background()
+			testCtx := newTestContext(ctx)
 
-	// Create a request
-	req := connect.NewRequest(&v1.GetDiaryEntryRequest{
-		Id: entryID.String(),
-	})
+			entryID := tc.setup(t, ctx)
+			req := connect.NewRequest(&v1.GetDiaryEntryRequest{
+				Id: tc.reqID(entryID),
+			})
 
-	testCtx := newTestContext(ctx)
-
-	resp, err := handler.GetDiaryEntry(testCtx, req)
-
-	// Check for errors
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	// Verify the response
-	if resp == nil || resp.Msg == nil || resp.Msg.DiaryEntry == nil {
-		t.Fatal("Expected response with diary entry, got nil")
-	}
-
-	if resp.Msg.DiaryEntry.Id != entryID.String() {
-		t.Errorf("Expected ID %v, got %v", entryID.String(), resp.Msg.DiaryEntry.Id)
-	}
-
-	if resp.Msg.DiaryEntry.Title == nil || resp.Msg.DiaryEntry.Title.Value != title {
-		t.Errorf("Expected Title %v, got %v", title, resp.Msg.DiaryEntry.Title)
-	}
-
-	if resp.Msg.DiaryEntry.Content != content {
-		t.Errorf("Expected Content %v, got %v", content, resp.Msg.DiaryEntry.Content)
+			resp, err := handler.GetDiaryEntry(testCtx, req)
+			tc.verify(t, resp, err)
+		})
 	}
 }
+
 func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
 	resetDB(t, testPool)
+	repo := testutil.NewDiaryEntryRepository(testPool)
+	handler := NewDiaryHandler(repo, testLogger)
 	ctx := context.Background()
+	testCtx := newTestContext(ctx)
 
-	// Create test diary entries
+	// Setup: Create test entries
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
-
 	_, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Today's Entry", "Content for today", today)
-	if err != nil {
-		t.Fatalf("Failed to create test diary entry: %v", err)
-	}
-
+	require.NoError(t, err)
 	_, err = testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Yesterday's Entry", "Content for yesterday", yesterday)
-	if err != nil {
-		t.Fatalf("Failed to create test diary entry: %v", err)
-	}
+	require.NoError(t, err)
 
-	repo := testutil.NewDiaryEntryRepository(testPool)
-	handler := NewDiaryHandler(repo, testLogger)
-
-	// Test parameters
-	pageSize := int32(10)
-	pageNumber := int32(1)
-
-	// Create a request
-	req := connect.NewRequest(&v1.ListDiaryEntriesRequest{
-		Pagination: &v1.PageRequest{
-			PageSize:   pageSize,
-			PageNumber: pageNumber,
+	testCases := []struct {
+		name        string
+		req         *v1.ListDiaryEntriesRequest
+		expectLen   int
+		expectTotal int32
+		expectPage  int32
+	}{
+		{
+			name: "Default Pagination",
+			req: &v1.ListDiaryEntriesRequest{
+				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
+			},
+			expectLen:   2,
+			expectTotal: 2,
+			expectPage:  1,
 		},
-	})
-
-	testCtx := newTestContext(ctx)
-
-	resp, err := handler.ListDiaryEntries(testCtx, req)
-
-	// Check for errors
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		{
+			name: "Pagination - Page 1 Size 1",
+			req: &v1.ListDiaryEntriesRequest{
+				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 1},
+			},
+			expectLen:   1,
+			expectTotal: 2,
+			expectPage:  1,
+		},
+		{
+			name: "Pagination - Page 2 Size 1",
+			req: &v1.ListDiaryEntriesRequest{
+				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 2},
+			},
+			expectLen:   1,
+			expectTotal: 2,
+			expectPage:  2,
+		},
+		{
+			name: "Pagination - Page 3 Size 1 (Empty)",
+			req: &v1.ListDiaryEntriesRequest{
+				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 3},
+			},
+			expectLen:   0,
+			expectTotal: 2,
+			expectPage:  3,
+		},
 	}
 
-	// Verify the response
-	if resp == nil || resp.Msg == nil {
-		t.Fatal("Expected response, got nil")
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := connect.NewRequest(tc.req)
+			resp, err := handler.ListDiaryEntries(testCtx, req)
 
-	expectedCount := 2
-	if len(resp.Msg.DiaryEntries) != expectedCount {
-		t.Errorf("Expected %d entries, got %d", expectedCount, len(resp.Msg.DiaryEntries))
-	}
-
-	if resp.Msg.Pagination == nil {
-		t.Fatal("Expected pagination in response, got nil")
-	}
-
-	if resp.Msg.Pagination.TotalItems != int32(expectedCount) {
-		t.Errorf("Expected total items %d, got %d", expectedCount, resp.Msg.Pagination.TotalItems)
-	}
-
-	if resp.Msg.Pagination.CurrentPage != pageNumber {
-		t.Errorf("Expected current page %d, got %d", pageNumber, resp.Msg.Pagination.CurrentPage)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.NotNil(t, resp.Msg)
+			assert.Len(t, resp.Msg.DiaryEntries, tc.expectLen)
+			require.NotNil(t, resp.Msg.Pagination)
+			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
+			assert.Equal(t, tc.expectPage, resp.Msg.Pagination.CurrentPage)
+		})
 	}
 }
+
 func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
-	resetDB(t, testPool)
-	ctx := context.Background()
-
-	// Create a test diary entry
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
-	title := "Entry to Delete"
-	content := "This entry will be deleted."
+	titleToDelete := "Entry to Delete"
+	contentToDelete := "This entry will be deleted."
 
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, title, content, entryDate)
-	if err != nil {
-		t.Fatalf("Failed to create test diary entry: %v", err)
+	testCases := []struct {
+		name        string
+		setup       func(t *testing.T, ctx context.Context) uuid.UUID // Returns the ID of the entry to delete
+		reqID       func(entryID uuid.UUID) string                    // Function to generate request ID string
+		expectError bool
+		verify      func(t *testing.T, resp *connect.Response[v1.DeleteDiaryEntryResponse], err error, entryID uuid.UUID, handler *DiaryHandler, testCtx context.Context)
+	}{
+		{
+			name: "Success - Delete Existing Entry",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, titleToDelete, contentToDelete, entryDate)
+				require.NoError(t, err)
+				return entryID
+			},
+			reqID: func(entryID uuid.UUID) string { return entryID.String() },
+			expectError: false,
+			verify: func(t *testing.T, resp *connect.Response[v1.DeleteDiaryEntryResponse], err error, entryID uuid.UUID, handler *DiaryHandler, testCtx context.Context) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+				assert.True(t, resp.Msg.Success)
+
+				// Verify deletion by trying to get it
+				getReq := connect.NewRequest(&v1.GetDiaryEntryRequest{Id: entryID.String()})
+				_, getErr := handler.GetDiaryEntry(testCtx, getReq)
+				require.Error(t, getErr, "Expected error when getting deleted entry, got nil")
+			},
+		},
+		{
+			name: "Error - Delete Non-existent Entry",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				// No setup needed, just generate a random ID
+				return uuid.New()
+			},
+			reqID: func(entryID uuid.UUID) string { return entryID.String() },
+			expectError: true, // Expecting an error now for non-existent delete
+			verify: func(t *testing.T, resp *connect.Response[v1.DeleteDiaryEntryResponse], err error, entryID uuid.UUID, handler *DiaryHandler, testCtx context.Context) {
+				// Expect a specific error (e.g., NotFound) when trying to delete a non-existent entry.
+				// The exact error code might depend on the handler implementation.
+				require.Error(t, err, "Expected an error when deleting non-existent entry")
+				// Optionally check for a specific error code if known:
+				// assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+				assert.Nil(t, resp, "Response should be nil on error")
+			},
+		},
+		{
+			name: "Error - Invalid ID Format",
+			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+				return uuid.Nil // Placeholder, not used
+			},
+			reqID: func(entryID uuid.UUID) string { return "invalid-uuid" },
+			expectError: true,
+			verify: func(t *testing.T, resp *connect.Response[v1.DeleteDiaryEntryResponse], err error, entryID uuid.UUID, handler *DiaryHandler, testCtx context.Context) {
+				require.Error(t, err) // Expect invalid argument error
+				assert.Nil(t, resp)
+			},
+		},
 	}
 
-	repo := testutil.NewDiaryEntryRepository(testPool)
-	handler := NewDiaryHandler(repo, testLogger)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resetDB(t, testPool)
+			repo := testutil.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(repo, testLogger)
+			ctx := context.Background()
+			testCtx := newTestContext(ctx)
 
-	// Create a request
-	req := connect.NewRequest(&v1.DeleteDiaryEntryRequest{
-		Id: entryID.String(),
-	})
+			entryID := tc.setup(t, ctx)
+			req := connect.NewRequest(&v1.DeleteDiaryEntryRequest{
+				Id: tc.reqID(entryID),
+			})
 
-	testCtx := newTestContext(ctx)
-
-	resp, err := handler.DeleteDiaryEntry(testCtx, req)
-
-	// Check for errors
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	// Verify the response
-	if resp == nil || resp.Msg == nil {
-		t.Fatal("Expected response, got nil")
-	}
-
-	if !resp.Msg.Success {
-		t.Errorf("Expected success to be true, got false")
-	}
-
-	// Verify the entry was deleted by trying to get it
-	getReq := connect.NewRequest(&v1.GetDiaryEntryRequest{
-		Id: entryID.String(),
-	})
-	_, err = handler.GetDiaryEntry(testCtx, getReq)
-	if err == nil {
-		t.Error("Expected error when getting deleted entry, got nil")
+			resp, err := handler.DeleteDiaryEntry(testCtx, req)
+			tc.verify(t, resp, err, entryID, handler, testCtx)
+		})
 	}
 }

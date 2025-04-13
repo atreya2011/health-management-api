@@ -122,17 +122,27 @@ func (r *DiaryEntryRepository) Delete(ctx context.Context, id, userID uuid.UUID)
 		UserID: userID,
 	}
 
-	err := r.q.DeleteDiaryEntry(ctx, params)
+	// 1. Check if the entry exists and belongs to the user *before* deleting.
+	_, err := r.FindByID(ctx, id, userID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// Consider returning ErrDiaryEntryNotFound here too for consistency?
-			// For now, matching original behavior which returned nil on no rows for delete.
-			return nil
+		if errors.Is(err, ErrDiaryEntryNotFound) {
+			// Entry doesn't exist or doesn't belong to the user. Return the specific error.
+			return ErrDiaryEntryNotFound
 		}
-		return fmt.Errorf("failed to delete diary entry: %w", err) // Use fmt.Errorf
+		// Some other error occurred during the check.
+		return fmt.Errorf("failed to check diary entry existence before delete: %w", err)
 	}
 
-	return nil
+	// 2. Entry exists, proceed with deletion.
+	// We assume the sqlc generated DeleteDiaryEntry only returns error.
+	err = r.q.DeleteDiaryEntry(ctx, params)
+	if err != nil {
+		// We don't expect ErrNoRows here anymore because we checked existence first.
+		// Any error here is likely a real database issue.
+		return fmt.Errorf("failed to execute delete diary entry query: %w", err)
+	}
+
+	return nil // Deletion successful
 }
 
 // CountByUser returns the total number of diary entries for a user
