@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	postgres "github.com/atreya2011/health-management-api/internal/db"
+	"github.com/atreya2011/health-management-api/internal/repo"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -24,7 +24,7 @@ type JWTConfig struct {
 }
 
 // AuthInterceptor creates a Connect interceptor for JWT authentication
-func AuthInterceptor(jwtConfig *JWTConfig, userRepo *postgres.UserRepository, logger *slog.Logger) connect.UnaryInterceptorFunc { // Use concrete repo type
+func AuthInterceptor(jwtConfig *JWTConfig, userRepo *repo.UserRepository, logger *slog.Logger) connect.UnaryInterceptorFunc { // Use concrete repo type
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 			// Skip auth for public endpoints (if any)

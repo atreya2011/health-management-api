@@ -1,11 +1,11 @@
-package postgres
+package repo
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -111,5 +111,3 @@ func (r *BodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID
 
 	return count, nil
 }
-
-// Removed toLocalBodyRecord function as it's no longer needed

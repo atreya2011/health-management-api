@@ -1,11 +1,11 @@
-package postgres
+package repo
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

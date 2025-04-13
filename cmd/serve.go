@@ -18,8 +18,8 @@ import (
 
 	"github.com/atreya2011/health-management-api/internal/auth"
 	"github.com/atreya2011/health-management-api/internal/config"
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	applog "github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/repo"
 	"github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1/healthappv1connect"
 	"github.com/atreya2011/health-management-api/internal/rpc/handlers"
 )
@@ -47,7 +47,7 @@ func init() {
 
 func runServer() {
 	// Initialize logger
-	logger := applog.NewLogger()
+	logger := log.NewLogger()
 	if verboseMode {
 		// Set more verbose logging when verbose flag is enabled
 		logger.Info("Verbose mode enabled")
@@ -69,7 +69,7 @@ func runServer() {
 
 	// Initialize database connection
 	logger.Info("Connecting to database...", "url", cfg.Database.URL)
-	dbPool, err := postgres.NewDBPool(&cfg.Database)
+	dbPool, err := repo.NewDBPool(&cfg.Database)
 	if err != nil {
 		logger.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
@@ -95,11 +95,11 @@ func runServer() {
 	logger.Info("Database schema verified", "column_name", columnName)
 
 	// Initialize repositories
-	userRepo := postgres.NewUserRepository(dbPool)
-	bodyRecordRepo := postgres.NewBodyRecordRepository(dbPool)
-	diaryEntryRepo := postgres.NewDiaryEntryRepository(dbPool)
-	exerciseRecordRepo := postgres.NewExerciseRecordRepository(dbPool)
-	columnRepo := postgres.NewColumnRepository(dbPool)
+	userRepo := repo.NewUserRepository(dbPool)
+	bodyRecordRepo := repo.NewBodyRecordRepository(dbPool)
+	diaryEntryRepo := repo.NewDiaryEntryRepository(dbPool)
+	exerciseRecordRepo := repo.NewExerciseRecordRepository(dbPool)
+	columnRepo := repo.NewColumnRepository(dbPool)
 
 	// Initialize application services
 	// bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger) // Removed

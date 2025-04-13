@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,6 +46,6 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 }
 
 // NewExerciseRecordRepository creates a new exercise record repository for testing
-func NewExerciseRecordRepository(pool *pgxpool.Pool) *postgres.ExerciseRecordRepository { // Return concrete type
-	return postgres.NewExerciseRecordRepository(pool)
+func NewExerciseRecordRepository(pool *pgxpool.Pool) *repo.ExerciseRecordRepository { // Return concrete type
+	return repo.NewExerciseRecordRepository(pool)
 }

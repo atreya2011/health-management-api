@@ -5,8 +5,8 @@ sql:
     schema: "db/migrations" # Directory containing *.sql schema files
     gen:
       go:
-        package: "db" # Go package name for generated code
-        out: "internal/db/gen" # Output directory
+        package: "gen" # Go package name for generated code
+        out: "internal/repo/gen" # Output directory
         sql_package: "pgx/v5" # Use pgx/v5 interfaces
         emit_json_tags: true # Add json struct tags
         emit_prepared_queries: false # Use unprepared queries by default (good for pool)

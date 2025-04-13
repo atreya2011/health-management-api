@@ -9,8 +9,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/atreya2011/health-management-api/internal/auth"
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -18,12 +18,12 @@ import (
 
 // BodyRecordHandler implements the body record service RPCs
 type BodyRecordHandler struct {
-	repo *postgres.BodyRecordRepository // Use concrete repository type
+	repo *repo.BodyRecordRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewBodyRecordHandler creates a new body record handler
-func NewBodyRecordHandler(repo *postgres.BodyRecordRepository, log *slog.Logger) *BodyRecordHandler { // Use concrete repository type
+func NewBodyRecordHandler(repo *repo.BodyRecordRepository, log *slog.Logger) *BodyRecordHandler { // Use concrete repository type
 	return &BodyRecordHandler{
 		repo: repo,
 		log:  log,
@@ -79,7 +79,7 @@ func (h *BodyRecordHandler) CreateBodyRecord(ctx context.Context, req *connect.R
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("body fat percentage cannot exceed 100%"))
 		}
 	}
-	// Removed instantiation of postgres.BodyRecord
+	// Removed instantiation of repo.BodyRecord
 
 	// Call repository directly with new signature
 	h.log.InfoContext(ctx, "Saving body record", "userID", userID, "date", date)

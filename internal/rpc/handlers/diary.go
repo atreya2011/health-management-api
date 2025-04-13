@@ -11,8 +11,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/atreya2011/health-management-api/internal/auth"
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -21,12 +21,12 @@ import (
 
 // DiaryHandler implements the diary service RPCs
 type DiaryHandler struct {
-	repo *postgres.DiaryEntryRepository // Use concrete repository type
+	repo *repo.DiaryEntryRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewDiaryHandler creates a new diary handler
-func NewDiaryHandler(repo *postgres.DiaryEntryRepository, log *slog.Logger) *DiaryHandler { // Use concrete repository type
+func NewDiaryHandler(repo *repo.DiaryEntryRepository, log *slog.Logger) *DiaryHandler { // Use concrete repository type
 	return &DiaryHandler{
 		repo: repo,
 		log:  log,
@@ -70,7 +70,7 @@ func (h *DiaryHandler) CreateDiaryEntry(ctx context.Context, req *connect.Reques
 	if entryDate.After(time.Now()) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("entry date cannot be in the future"))
 	}
-	// Removed instantiation of postgres.DiaryEntry
+	// Removed instantiation of repo.DiaryEntry
 
 	// Call repository directly with new signature
 	h.log.InfoContext(ctx, "Creating diary entry", "userID", userID, "entryDate", entryDate)
@@ -132,7 +132,7 @@ func (h *DiaryHandler) UpdateDiaryEntry(ctx context.Context, req *connect.Reques
 	h.log.InfoContext(ctx, "Updating diary entry", "entryID", entryID, "userID", userID)
 	updatedEntry, err := h.repo.Update(ctx, entryID, userID, title, content) // Use new signature
 	if err != nil {
-		if errors.Is(err, postgres.ErrDiaryEntryNotFound) { // Check if repo returned not found
+		if errors.Is(err, repo.ErrDiaryEntryNotFound) { // Check if repo returned not found
 			h.log.WarnContext(ctx, "Diary entry not found during update", "entryID", entryID, "userID", userID)
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
 		}
@@ -244,7 +244,7 @@ func (h *DiaryHandler) GetDiaryEntry(ctx context.Context, req *connect.Request[v
 	h.log.InfoContext(ctx, "Fetching diary entry", "entryID", entryID, "userID", userID)
 	entry, err := h.repo.FindByID(ctx, entryID, userID) // Changed from diaryApp.GetDiaryEntry
 	if err != nil {
-		if errors.Is(err, postgres.ErrDiaryEntryNotFound) { // Use postgres error
+		if errors.Is(err, repo.ErrDiaryEntryNotFound) { // Use postgres error
 			h.log.WarnContext(ctx, "Diary entry not found", "entryID", entryID, "userID", userID)
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
 		}
@@ -284,7 +284,7 @@ func (h *DiaryHandler) DeleteDiaryEntry(ctx context.Context, req *connect.Reques
 	err = h.repo.Delete(ctx, entryID, userID) // Changed from diaryApp.DeleteDiaryEntry
 	if err != nil {
 		// Note: Delete doesn't return ErrDiaryEntryNotFound in the repo implementation currently
-		// if errors.Is(err, postgres.ErrDiaryEntryNotFound) {
+		// if errors.Is(err, repo.ErrDiaryEntryNotFound) {
 		// 	h.log.WarnContext(ctx, "Diary entry not found for deletion", "entryID", entryID, "userID", userID)
 		// 	return nil, connect.NewError(connect.CodeNotFound, errors.New("diary entry not found"))
 		// }

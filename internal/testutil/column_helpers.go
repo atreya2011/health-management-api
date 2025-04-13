@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	postgres "github.com/atreya2011/health-management-api/internal/db"
+	"github.com/atreya2011/health-management-api/internal/repo"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // NewColumnRepository creates a new column repository for testing
-func NewColumnRepository(pool *pgxpool.Pool) *postgres.ColumnRepository { // Return concrete type
-	return postgres.NewColumnRepository(pool)
+func NewColumnRepository(pool *pgxpool.Pool) *repo.ColumnRepository { // Return concrete type
+	return repo.NewColumnRepository(pool)
 }
 
 // CreateTestColumn creates a test column in the database using the provided pool

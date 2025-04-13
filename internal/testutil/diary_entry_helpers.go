@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,6 +40,6 @@ func CreateTestDiaryEntry(ctx context.Context, queries *db.Queries, userID uuid.
 }
 
 // NewDiaryEntryRepository creates a new diary entry repository for testing
-func NewDiaryEntryRepository(pool *pgxpool.Pool) *postgres.DiaryEntryRepository { // Return concrete type
-	return postgres.NewDiaryEntryRepository(pool)
+func NewDiaryEntryRepository(pool *pgxpool.Pool) *repo.DiaryEntryRepository { // Return concrete type
+	return repo.NewDiaryEntryRepository(pool)
 }

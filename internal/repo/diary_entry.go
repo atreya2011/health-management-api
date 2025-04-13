@@ -1,4 +1,4 @@
-package postgres
+package repo
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -144,5 +144,3 @@ func (r *DiaryEntryRepository) CountByUser(ctx context.Context, userID uuid.UUID
 
 	return count, nil
 }
-
-// Removed toLocalDiaryEntry function as it's no longer needed

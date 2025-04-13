@@ -1,11 +1,11 @@
-package postgres
+package repo
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -119,5 +119,3 @@ func (r *ColumnRepository) CountByTag(ctx context.Context, tag string) (int64, e
 
 	return count, nil
 }
-
-// Removed toLocalColumn function as it's no longer needed

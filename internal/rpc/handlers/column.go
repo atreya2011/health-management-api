@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -18,12 +18,12 @@ import (
 
 // ColumnHandler implements the column service RPCs
 type ColumnHandler struct {
-	repo *postgres.ColumnRepository // Use concrete repository type
+	repo *repo.ColumnRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewColumnHandler creates a new column handler
-func NewColumnHandler(repo *postgres.ColumnRepository, log *slog.Logger) *ColumnHandler { // Use concrete repository type
+func NewColumnHandler(repo *repo.ColumnRepository, log *slog.Logger) *ColumnHandler { // Use concrete repository type
 	return &ColumnHandler{
 		repo: repo,
 		log:  log,
@@ -109,7 +109,7 @@ func (h *ColumnHandler) GetColumn(ctx context.Context, req *connect.Request[v1.G
 	h.log.InfoContext(ctx, "Fetching column", "columnID", columnID)
 	column, err := h.repo.FindByID(ctx, columnID) // Changed from columnApp.GetColumn
 	if err != nil {
-		if errors.Is(err, postgres.ErrColumnNotFound) { // Use postgres error
+		if errors.Is(err, repo.ErrColumnNotFound) { // Use postgres error
 			h.log.WarnContext(ctx, "Column not found", "columnID", columnID)
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("column not found"))
 		}

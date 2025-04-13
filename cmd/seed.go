@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/atreya2011/health-management-api/internal/config"
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	applog "github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/repo"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 )
 
@@ -38,7 +38,7 @@ func init() {
 
 func runSeed() {
 	// Initialize logger
-	logger := applog.NewLogger()
+	logger := log.NewLogger()
 	if verboseMode {
 		logger.Info("Verbose mode enabled")
 	}
@@ -52,7 +52,7 @@ func runSeed() {
 	}
 
 	// Initialize database connection
-	dbPool, err := postgres.NewDBPool(&cfg.Database)
+	dbPool, err := repo.NewDBPool(&cfg.Database)
 	if err != nil {
 		logger.Error("Failed to connect to database", "error", err)
 		return
@@ -61,8 +61,8 @@ func runSeed() {
 	logger.Info("Database connection pool established")
 
 	// Initialize repositories
-	userRepo := postgres.NewUserRepository(dbPool)
-	bodyRecordRepo := postgres.NewBodyRecordRepository(dbPool)
+	userRepo := repo.NewUserRepository(dbPool)
+	bodyRecordRepo := repo.NewBodyRecordRepository(dbPool)
 	// Initialize other repositories as needed
 
 	// Create a context with timeout
@@ -74,7 +74,7 @@ func runSeed() {
 	if err != nil {
 		// Check if it's the specific "not found" error which Create now handles internally by fetching
 		// If it's any other error during creation or fetching, log and return
-		if !errors.Is(err, postgres.ErrUserNotFound) {
+		if !errors.Is(err, repo.ErrUserNotFound) {
 			logger.Error("Failed to create or retrieve test user", "error", err)
 			return
 		}
@@ -99,7 +99,7 @@ func runSeed() {
 	// Original error handling for FindBySubjectID (kept for reference, but Create handles this now)
 	// testUser, err := userRepo.FindBySubjectID(ctx, "test-subject-id")
 	// if err != nil {
-	// 	if errors.Is(err, postgres.ErrUserNotFound) { // Use postgres error
+	// 	if errors.Is(err, repo.ErrUserNotFound) { // Use postgres error
 	// 		// Create logic was here...
 	// 	} else {
 	// 		logger.Error("Failed to check for test user", "error", err)

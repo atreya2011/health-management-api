@@ -9,8 +9,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/atreya2011/health-management-api/internal/auth"
-	postgres "github.com/atreya2011/health-management-api/internal/db"
-	db "github.com/atreya2011/health-management-api/internal/db/gen"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -19,12 +19,12 @@ import (
 
 // ExerciseRecordHandler implements the exercise record service RPCs
 type ExerciseRecordHandler struct {
-	repo *postgres.ExerciseRecordRepository // Use concrete repository type
+	repo *repo.ExerciseRecordRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewExerciseRecordHandler creates a new exercise record handler
-func NewExerciseRecordHandler(repo *postgres.ExerciseRecordRepository, log *slog.Logger) *ExerciseRecordHandler { // Use concrete repository type
+func NewExerciseRecordHandler(repo *repo.ExerciseRecordRepository, log *slog.Logger) *ExerciseRecordHandler { // Use concrete repository type
 	return &ExerciseRecordHandler{
 		repo: repo,
 		log:  log,
@@ -91,7 +91,7 @@ func (h *ExerciseRecordHandler) CreateExerciseRecord(ctx context.Context, req *c
 	if recordedAt.After(time.Now()) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("recorded date cannot be in the future"))
 	}
-	// Removed instantiation of postgres.ExerciseRecord
+	// Removed instantiation of repo.ExerciseRecord
 
 	// Call repository directly with new signature
 	h.log.InfoContext(ctx, "Creating exercise record", "userID", userID, "exerciseName", exerciseName)
@@ -206,7 +206,7 @@ func (h *ExerciseRecordHandler) DeleteExerciseRecord(ctx context.Context, req *c
 	err = h.repo.Delete(ctx, recordID, userID) // Changed from exerciseApp.DeleteExerciseRecord
 	if err != nil {
 		// Note: Delete doesn't return ErrExerciseRecordNotFound in the repo implementation currently
-		// if errors.Is(err, postgres.ErrExerciseRecordNotFound) { // Use postgres error
+		// if errors.Is(err, repo.ErrExerciseRecordNotFound) { // Use postgres error
 		// 	h.log.WarnContext(ctx, "Exercise record not found for deletion", "recordID", recordID, "userID", userID)
 		// 	return nil, connect.NewError(connect.CodeNotFound, errors.New("exercise record not found"))
 		// }
