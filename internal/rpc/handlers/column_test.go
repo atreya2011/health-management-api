@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"context"
-	"log/slog"
-	"os"
+	// "log/slog" // No longer needed
+	// "os" // No longer needed
 	"testing"
 	"time"
 
@@ -12,17 +12,19 @@ import (
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool" // Add import for pgxpool.Pool
 )
 
-// setupTestColumns creates test columns in the database for testing
-func setupTestColumns(t *testing.T, ctx context.Context, testDB *testutil.TestDatabase) (uuid.UUID, uuid.UUID, uuid.UUID, string, string) {
+// setupTestColumns creates test columns in the database for testing using the global pool
+func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID, uuid.UUID, string, string) {
 	now := time.Now()
 	publishedAt := now.Add(-24 * time.Hour)
 	futureDate := now.Add(24 * time.Hour)
 
 	column1ID := uuid.New()
 	category1 := "health"
-	err := testutil.CreateTestColumn(ctx, testDB.Pool, column1ID, "Test Column 1", "Test content 1",
+	// Use the passed-in pool directly
+	err := testutil.CreateTestColumn(ctx, pool, column1ID, "Test Column 1", "Test content 1",
 		pgtype.Text{String: category1, Valid: true},
 		[]string{"diet", "exercise"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
@@ -32,7 +34,8 @@ func setupTestColumns(t *testing.T, ctx context.Context, testDB *testutil.TestDa
 
 	column2ID := uuid.New()
 	category2 := "nutrition"
-	err = testutil.CreateTestColumn(ctx, testDB.Pool, column2ID, "Test Column 2", "Test content 2",
+	// Use the passed-in pool directly
+	err = testutil.CreateTestColumn(ctx, pool, column2ID, "Test Column 2", "Test content 2",
 		pgtype.Text{String: category2, Valid: true},
 		[]string{"diet", "food"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
@@ -41,7 +44,8 @@ func setupTestColumns(t *testing.T, ctx context.Context, testDB *testutil.TestDa
 	}
 
 	column3ID := uuid.New()
-	err = testutil.CreateTestColumn(ctx, testDB.Pool, column3ID, "Unpublished Column", "This should not appear",
+	// Use the passed-in pool directly
+	err = testutil.CreateTestColumn(ctx, pool, column3ID, "Unpublished Column", "This should not appear",
 		pgtype.Text{String: "health", Valid: true},
 		[]string{"diet"},
 		pgtype.Timestamptz{Time: futureDate, Valid: true})
@@ -52,21 +56,18 @@ func setupTestColumns(t *testing.T, ctx context.Context, testDB *testutil.TestDa
 	return column1ID, column2ID, column3ID, category1, category2
 }
 
-// setupHandler creates a new column handler for testing
-func setupHandler(testDB *testutil.TestDatabase) (*ColumnHandler, context.Context) {
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	ctx := context.Background()
-	repo := testutil.NewColumnRepository(testDB.Pool)
-	handler := NewColumnHandler(repo, logger)
-	return handler, ctx
-}
+// setupHandler is removed, handler created directly in tests
 
 func TestColumnHandler_ListPublishedColumns(t *testing.T) {
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
+	resetDB(t, testPool) // Reset DB state for this test
+	// DB Setup/Teardown handled by TestMain
 
-	handler, ctx := setupHandler(testDB)
-	setupTestColumns(t, ctx, testDB)
+	// Create handler using global resources
+	repo := testutil.NewColumnRepository(testPool)
+	handler := NewColumnHandler(repo, testLogger)
+	ctx := context.Background() // Use background context
+
+	setupTestColumns(t, ctx, testPool)   // Use global testPool
 
 	// Test ListPublishedColumns
 	req := connect.NewRequest(&v1.ListPublishedColumnsRequest{
@@ -91,11 +92,15 @@ func TestColumnHandler_ListPublishedColumns(t *testing.T) {
 }
 
 func TestColumnHandler_GetColumn(t *testing.T) {
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
+	resetDB(t, testPool) // Reset DB state for this test
+	// DB Setup/Teardown handled by TestMain
 
-	handler, ctx := setupHandler(testDB)
-	column1ID, _, column3ID, _, _ := setupTestColumns(t, ctx, testDB)
+	// Create handler using global resources
+	repo := testutil.NewColumnRepository(testPool)
+	handler := NewColumnHandler(repo, testLogger)
+	ctx := context.Background() // Use background context
+
+	column1ID, _, column3ID, _, _ := setupTestColumns(t, ctx, testPool) // Use global testPool
 
 	// Test GetColumn with a published column
 	getReq := connect.NewRequest(&v1.GetColumnRequest{
@@ -142,11 +147,15 @@ func TestColumnHandler_GetColumn(t *testing.T) {
 }
 
 func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
+	resetDB(t, testPool) // Reset DB state for this test
+	// DB Setup/Teardown handled by TestMain
 
-	handler, ctx := setupHandler(testDB)
-	_, _, _, category1, _ := setupTestColumns(t, ctx, testDB)
+	// Create handler using global resources
+	repo := testutil.NewColumnRepository(testPool)
+	handler := NewColumnHandler(repo, testLogger)
+	ctx := context.Background() // Use background context
+
+	_, _, _, category1, _ := setupTestColumns(t, ctx, testPool) // Use global testPool
 
 	// Test ListColumnsByCategory
 	categoryReq := connect.NewRequest(&v1.ListColumnsByCategoryRequest{
@@ -177,11 +186,15 @@ func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
 }
 
 func TestColumnHandler_ListColumnsByTag(t *testing.T) {
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
+	resetDB(t, testPool) // Reset DB state for this test
+	// DB Setup/Teardown handled by TestMain
 
-	handler, ctx := setupHandler(testDB)
-	setupTestColumns(t, ctx, testDB)
+	// Create handler using global resources
+	repo := testutil.NewColumnRepository(testPool)
+	handler := NewColumnHandler(repo, testLogger)
+	ctx := context.Background() // Use background context
+
+	setupTestColumns(t, ctx, testPool)   // Use global testPool
 
 	// Test ListColumnsByTag
 	tag := "diet"

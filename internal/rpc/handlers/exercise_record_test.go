@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"context"
-	"log/slog"
-	"os"
+	// "log/slog" // Handled by TestMain
+	// "os" // Handled by TestMain
 	"testing"
 	"time"
 
@@ -15,25 +15,13 @@ import (
 )
 
 func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
 
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
-
-	// Create a real repository
-	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewExerciseRecordRepository(testPool)
+	handler := NewExerciseRecordHandler(repo, testLogger)
+	ctx := context.Background() // Use background context
 
 	// Test data
 	recordedAt := time.Now().UTC()
@@ -49,11 +37,9 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 		RecordedAt:      timestamppb.New(recordedAt),
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	// Note: testContext struct definition is removed as it's in main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.CreateExerciseRecord(testCtx, req)
@@ -68,8 +54,9 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 		t.Fatal("Expected response with exercise record, got nil")
 	}
 
-	if resp.Msg.ExerciseRecord.UserId != userID.String() {
-		t.Errorf("Expected UserID %v, got %v", userID.String(), resp.Msg.ExerciseRecord.UserId)
+	// Use global testUserID for verification
+	if resp.Msg.ExerciseRecord.UserId != testUserID.String() {
+		t.Errorf("Expected UserID %v, got %v", testUserID.String(), resp.Msg.ExerciseRecord.UserId)
 	}
 
 	if resp.Msg.ExerciseRecord.ExerciseName != exerciseName {
@@ -86,25 +73,13 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 }
 
 func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
 
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
-
-	// Create a real repository
-	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewExerciseRecordRepository(testPool)
+	handler := NewExerciseRecordHandler(repo, testLogger)
+	ctx := context.Background() // Use background context
 
 	// Test data - invalid duration to trigger validation error
 	recordedAt := time.Now().UTC()
@@ -118,11 +93,8 @@ func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
 		RecordedAt:      timestamppb.New(recordedAt),
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.CreateExerciseRecord(testCtx, req)
@@ -139,19 +111,9 @@ func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
 }
 
 func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
+	ctx := context.Background() // Use background context
 
 	// Create test records
 	today := time.Now().UTC()
@@ -162,21 +124,20 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 	calories1 := int32(250)
 	calories2 := int32(350)
 
-	_, err = testutil.CreateTestExerciseRecord(ctx, testDB.Queries, userID, "Running", &duration1, &calories1, today) // Pass testDB.Queries
+	// Use global testQueries and testUserID
+	_, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Running", &duration1, &calories1, today)
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	_, err = testutil.CreateTestExerciseRecord(ctx, testDB.Queries, userID, "Weight Training", &duration2, &calories2, yesterday) // Pass testDB.Queries
+	_, err = testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Weight Training", &duration2, &calories2, yesterday)
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	// Create a real repository
-	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewExerciseRecordRepository(testPool)
+	handler := NewExerciseRecordHandler(repo, testLogger)
 
 	// Test parameters
 	pageSize := int32(10)
@@ -190,11 +151,8 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 		},
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.ListExerciseRecords(testCtx, req)
@@ -228,46 +186,32 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 }
 
 func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
+	ctx := context.Background() // Use background context
 
 	// Create a test exercise record
 	recordedAt := time.Now().UTC()
 	duration := int32(30)
 	calories := int32(250)
 
-	record, err := testutil.CreateTestExerciseRecord(ctx, testDB.Queries, userID, "Record to Delete", &duration, &calories, recordedAt) // Pass testDB.Queries
+	// Use global testQueries and testUserID
+	record, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Record to Delete", &duration, &calories, recordedAt)
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	// Create a real repository
-	repo := testutil.NewExerciseRecordRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewExerciseRecordHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewExerciseRecordRepository(testPool)
+	handler := NewExerciseRecordHandler(repo, testLogger)
 
 	// Create a request
 	req := connect.NewRequest(&v1.DeleteExerciseRecordRequest{
 		Id: record.ID.String(),
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.DeleteExerciseRecord(testCtx, req)
@@ -293,7 +237,7 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 			PageNumber: 1,
 		},
 	})
-
+	// Use the same test context for verification
 	listResp, err := handler.ListExerciseRecords(testCtx, listReq)
 	if err != nil {
 		t.Errorf("Expected no error when listing records, got %v", err)

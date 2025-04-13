@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"context"
-	"log/slog"
-	"os"
+	// "log/slog" // Handled by TestMain
+	// "os" // Handled by TestMain
 	"testing"
 	"time"
 
@@ -14,25 +14,13 @@ import (
 )
 
 func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
 
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
-
-	// Create a real repository
-	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewDiaryEntryRepository(testPool)
+	handler := NewDiaryHandler(repo, testLogger)
+	ctx := context.Background() // Use background context
 
 	// Test data
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
@@ -46,11 +34,8 @@ func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
 		EntryDate: entryDate.Format("2006-01-02"),
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.CreateDiaryEntry(testCtx, req)
@@ -65,8 +50,9 @@ func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
 		t.Fatal("Expected response with diary entry, got nil")
 	}
 
-	if resp.Msg.DiaryEntry.UserId != userID.String() {
-		t.Errorf("Expected UserID %v, got %v", userID.String(), resp.Msg.DiaryEntry.UserId)
+	// Use global testUserID for verification
+	if resp.Msg.DiaryEntry.UserId != testUserID.String() {
+		t.Errorf("Expected UserID %v, got %v", testUserID.String(), resp.Msg.DiaryEntry.UserId)
 	}
 
 	if resp.Msg.DiaryEntry.EntryDate != entryDate.Format("2006-01-02") {
@@ -83,35 +69,24 @@ func TestDiaryHandler_CreateDiaryEntry(t *testing.T) {
 }
 
 func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
+	ctx := context.Background() // Use background context
 
 	// Create a test diary entry
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
 	title := "Original Title"
 	content := "Original content."
 
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, title, content, entryDate) // Pass testDB.Queries
+	// Use global testQueries and testUserID
+	entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, title, content, entryDate)
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository
-	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewDiaryEntryRepository(testPool)
+	handler := NewDiaryHandler(repo, testLogger)
 
 	// Updated data
 	updatedTitle := "Updated Title"
@@ -124,11 +99,8 @@ func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
 		Content: updatedContent,
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.UpdateDiaryEntry(testCtx, req)
@@ -157,46 +129,32 @@ func TestDiaryHandler_UpdateDiaryEntry(t *testing.T) {
 }
 
 func TestDiaryHandler_GetDiaryEntry(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
+	ctx := context.Background() // Use background context
 
 	// Create a test diary entry
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
 	title := "Test Title"
 	content := "Test content."
 
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, title, content, entryDate) // Pass testDB.Queries
+	// Use global testQueries and testUserID
+	entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, title, content, entryDate)
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository
-	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewDiaryEntryRepository(testPool)
+	handler := NewDiaryHandler(repo, testLogger)
 
 	// Create a request
 	req := connect.NewRequest(&v1.GetDiaryEntryRequest{
 		Id: entryID.String(),
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.GetDiaryEntry(testCtx, req)
@@ -225,39 +183,28 @@ func TestDiaryHandler_GetDiaryEntry(t *testing.T) {
 }
 
 func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
+	ctx := context.Background() // Use background context
 
 	// Create test diary entries
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
 
-	_, err = testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, "Today's Entry", "Content for today", today) // Pass testDB.Queries
+	// Use global testQueries and testUserID
+	_, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Today's Entry", "Content for today", today)
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	_, err = testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, "Yesterday's Entry", "Content for yesterday", yesterday) // Pass testDB.Queries
+	_, err = testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Yesterday's Entry", "Content for yesterday", yesterday)
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository
-	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewDiaryEntryRepository(testPool)
+	handler := NewDiaryHandler(repo, testLogger)
 
 	// Test parameters
 	pageSize := int32(10)
@@ -271,11 +218,8 @@ func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
 		},
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.ListDiaryEntries(testCtx, req)
@@ -309,46 +253,32 @@ func TestDiaryHandler_ListDiaryEntries(t *testing.T) {
 }
 
 func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
-	// Set up the test database
-	testDB := testutil.SetupTestDatabase(t)
-	defer testDB.TeardownTestDatabase(t)
-
-	// Create a logger that writes to stderr
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-
-	// Create a test user
-	ctx := context.Background()
-	userID, err := testutil.CreateTestUser(ctx, testDB.Queries) // Pass testDB.Queries
-	if err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
-	}
+	resetDB(t, testPool) // Reset DB state for this test
+	// Setup/Teardown/Logger/User handled by TestMain
+	ctx := context.Background() // Use background context
 
 	// Create a test diary entry
 	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
 	title := "Entry to Delete"
 	content := "This entry will be deleted."
 
-	entryID, err := testutil.CreateTestDiaryEntry(ctx, testDB.Queries, userID, title, content, entryDate) // Pass testDB.Queries
+	// Use global testQueries and testUserID
+	entryID, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, title, content, entryDate)
 	if err != nil {
 		t.Fatalf("Failed to create test diary entry: %v", err)
 	}
 
-	// Create a real repository
-	repo := testutil.NewDiaryEntryRepository(testDB.Pool)
-
-	// Create the handler with the real repository
-	handler := NewDiaryHandler(repo, logger)
+	// Use global testPool and testLogger
+	repo := testutil.NewDiaryEntryRepository(testPool)
+	handler := NewDiaryHandler(repo, testLogger)
 
 	// Create a request
 	req := connect.NewRequest(&v1.DeleteDiaryEntryRequest{
 		Id: entryID.String(),
 	})
 
-	// Create a context with a user ID
-	testCtx := testContext{
-		Context: ctx,
-		userID:  userID,
-	}
+	// Create a test context using the helper from main_test.go
+	testCtx := newTestContext(ctx)
 
 	// Call the method being tested
 	resp, err := handler.DeleteDiaryEntry(testCtx, req)
@@ -371,7 +301,7 @@ func TestDiaryHandler_DeleteDiaryEntry(t *testing.T) {
 	getReq := connect.NewRequest(&v1.GetDiaryEntryRequest{
 		Id: entryID.String(),
 	})
-
+	// Use the same test context for verification
 	_, err = handler.GetDiaryEntry(testCtx, getReq)
 	if err == nil {
 		t.Error("Expected error when getting deleted entry, got nil")
