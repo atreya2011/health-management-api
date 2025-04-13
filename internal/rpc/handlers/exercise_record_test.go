@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"context"
-	// "log/slog" // Handled by TestMain
-	// "os" // Handled by TestMain
 	"testing"
 	"time"
 
@@ -15,13 +13,11 @@ import (
 )
 
 func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup/Teardown/Logger/User handled by TestMain
+	resetDB(t, testPool)
 
-	// Use global testPool and testLogger
 	repo := testutil.NewExerciseRecordRepository(testPool)
 	handler := NewExerciseRecordHandler(repo, testLogger)
-	ctx := context.Background() // Use background context
+	ctx := context.Background()
 
 	// Test data
 	recordedAt := time.Now().UTC()
@@ -37,11 +33,8 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 		RecordedAt:      timestamppb.New(recordedAt),
 	})
 
-	// Create a test context using the helper from main_test.go
-	// Note: testContext struct definition is removed as it's in main_test.go
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.CreateExerciseRecord(testCtx, req)
 
 	// Check for errors
@@ -54,7 +47,6 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 		t.Fatal("Expected response with exercise record, got nil")
 	}
 
-	// Use global testUserID for verification
 	if resp.Msg.ExerciseRecord.UserId != testUserID.String() {
 		t.Errorf("Expected UserID %v, got %v", testUserID.String(), resp.Msg.ExerciseRecord.UserId)
 	}
@@ -71,15 +63,12 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 		t.Errorf("Expected CaloriesBurned %v, got %v", caloriesBurned, resp.Msg.ExerciseRecord.CaloriesBurned)
 	}
 }
-
 func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup/Teardown/Logger/User handled by TestMain
+	resetDB(t, testPool)
 
-	// Use global testPool and testLogger
 	repo := testutil.NewExerciseRecordRepository(testPool)
 	handler := NewExerciseRecordHandler(repo, testLogger)
-	ctx := context.Background() // Use background context
+	ctx := context.Background()
 
 	// Test data - invalid duration to trigger validation error
 	recordedAt := time.Now().UTC()
@@ -93,10 +82,8 @@ func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
 		RecordedAt:      timestamppb.New(recordedAt),
 	})
 
-	// Create a test context using the helper from main_test.go
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.CreateExerciseRecord(testCtx, req)
 
 	// Check for errors
@@ -109,11 +96,9 @@ func TestExerciseRecordHandler_CreateExerciseRecord_Error(t *testing.T) {
 		t.Errorf("Expected nil response, got %v", resp)
 	}
 }
-
 func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup/Teardown/Logger/User handled by TestMain
-	ctx := context.Background() // Use background context
+	resetDB(t, testPool)
+	ctx := context.Background()
 
 	// Create test records
 	today := time.Now().UTC()
@@ -124,7 +109,6 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 	calories1 := int32(250)
 	calories2 := int32(350)
 
-	// Use global testQueries and testUserID
 	_, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Running", &duration1, &calories1, today)
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
@@ -135,7 +119,6 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	// Use global testPool and testLogger
 	repo := testutil.NewExerciseRecordRepository(testPool)
 	handler := NewExerciseRecordHandler(repo, testLogger)
 
@@ -151,10 +134,8 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 		},
 	})
 
-	// Create a test context using the helper from main_test.go
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.ListExerciseRecords(testCtx, req)
 
 	// Check for errors
@@ -184,24 +165,20 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 		t.Errorf("Expected current page %d, got %d", pageNumber, resp.Msg.Pagination.CurrentPage)
 	}
 }
-
 func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup/Teardown/Logger/User handled by TestMain
-	ctx := context.Background() // Use background context
+	resetDB(t, testPool)
+	ctx := context.Background()
 
 	// Create a test exercise record
 	recordedAt := time.Now().UTC()
 	duration := int32(30)
 	calories := int32(250)
 
-	// Use global testQueries and testUserID
 	record, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Record to Delete", &duration, &calories, recordedAt)
 	if err != nil {
 		t.Fatalf("Failed to create test exercise record: %v", err)
 	}
 
-	// Use global testPool and testLogger
 	repo := testutil.NewExerciseRecordRepository(testPool)
 	handler := NewExerciseRecordHandler(repo, testLogger)
 
@@ -210,10 +187,8 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 		Id: record.ID.String(),
 	})
 
-	// Create a test context using the helper from main_test.go
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.DeleteExerciseRecord(testCtx, req)
 
 	// Check for errors
@@ -237,7 +212,6 @@ func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
 			PageNumber: 1,
 		},
 	})
-	// Use the same test context for verification
 	listResp, err := handler.ListExerciseRecords(testCtx, listReq)
 	if err != nil {
 		t.Errorf("Expected no error when listing records, got %v", err)

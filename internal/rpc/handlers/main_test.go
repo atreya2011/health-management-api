@@ -7,10 +7,10 @@ import (
 	"log"
 	"log/slog"
 	"os"
-	"path/filepath" // Added for migration path finding
-	"strings"       // Added for migration file check
+	"path/filepath"
+	"strings"
 	"testing"
-	"time" // Added for timeout
+	"time"
 
 	"github.com/atreya2011/health-management-api/internal/auth" // Added for UserContextKey
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
@@ -23,7 +23,6 @@ import (
 )
 
 var (
-	// testDB      *testutil.TestDatabase // No longer storing the wrapper struct
 	testQueries *db.Queries
 	testPool    *pgxpool.Pool
 	testLogger  *slog.Logger
@@ -32,12 +31,11 @@ var (
 	// Keep track of these for teardown
 	dockerPool *dockertest.Pool
 	resource   *dockertest.Resource
-	sqlDB      *sql.DB // Keep for migrations
+	sqlDB      *sql.DB // For migrations
 )
 
-// Copied and adapted from internal/testutil/postgres.go as it's not exported
 func runMigrations(db *sql.DB) error {
-	migrationFiles, err := findMigrationFiles() // Use local findMigrationFiles
+	migrationFiles, err := findMigrationFiles()
 	if err != nil {
 		return fmt.Errorf("could not find migration files: %w", err)
 	}
@@ -62,7 +60,6 @@ func runMigrations(db *sql.DB) error {
 	return nil
 }
 
-// Copied and adapted from internal/testutil/postgres.go as it's not exported
 func findMigrationFiles() ([]string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -116,7 +113,7 @@ func TestMain(m *testing.M) {
 	testLogger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})) // More verbose logging for setup
 	testLogger.Info("Setting up test database for handlers package...")
 
-	var err error // Declare error variable
+	var err error
 
 	// --- Start Database Setup ---
 	dockerPool, err = dockertest.NewPool("")
@@ -133,7 +130,7 @@ func TestMain(m *testing.M) {
 		Env: []string{
 			"POSTGRES_PASSWORD=postgres",
 			"POSTGRES_USER=postgres",
-			"POSTGRES_DB=testdb_handlers", // Distinct DB name
+			"POSTGRES_DB=testdb_handlers",
 		},
 	}, func(config *docker.HostConfig) {
 		config.AutoRemove = true
@@ -158,7 +155,7 @@ func TestMain(m *testing.M) {
 		sqlDB, retryErr = sql.Open("postgres", databaseURL)
 		if retryErr != nil {
 			testLogger.Warn("Retrying DB connection (sql.Open)...", "error", retryErr)
-			return retryErr // Don't wrap error, return directly
+			return retryErr
 		}
 		pingErr := sqlDB.Ping()
 		if pingErr != nil {
@@ -195,7 +192,7 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Could not create pgx connection pool: %s", err)
 	}
 
-	testQueries = db.New(testPool) // Use the pool for sqlc queries
+	testQueries = db.New(testPool)
 	// --- End Database Setup ---
 
 	// --- Start Seeding Data ---

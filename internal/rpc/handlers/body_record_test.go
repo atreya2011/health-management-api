@@ -6,20 +6,15 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	// "github.com/atreya2011/health-management-api/internal/auth" // Provided by main_test.go
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
-	// "github.com/google/uuid" // Provided by main_test.go's testUserID
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// testContext is now defined in main_test.go
 
 func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup and user creation are handled by TestMain
+	resetDB(t, testPool)
 
-	// Use global testPool and testLogger
 	repo := testutil.NewBodyRecordRepository(testPool)
 	handler := NewBodyRecordHandler(repo, testLogger)
 
@@ -36,10 +31,8 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 		WeightKg: &wrapperspb.DoubleValue{Value: weight},
 	})
 
-	// Create a test context using the helper from main_test.go (injects global testUserID)
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.CreateBodyRecord(testCtx, req)
 
 	// Check for errors
@@ -52,7 +45,6 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 		t.Fatal("Expected response with body record, got nil")
 	}
 
-	// Use global testUserID for verification
 	if resp.Msg.BodyRecord.UserId != testUserID.String() {
 		t.Errorf("Expected UserID %v, got %v", testUserID.String(), resp.Msg.BodyRecord.UserId)
 	}
@@ -65,12 +57,9 @@ func TestBodyRecordHandler_CreateBodyRecord(t *testing.T) {
 		t.Errorf("Expected WeightKg %v, got %v", weight, resp.Msg.BodyRecord.WeightKg)
 	}
 }
-
 func TestBodyRecordHandler_CreateBodyRecord_Error(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup and user creation are handled by TestMain
+	resetDB(t, testPool)
 
-	// Use global testPool and testLogger
 	repo := testutil.NewBodyRecordRepository(testPool)
 	handler := NewBodyRecordHandler(repo, testLogger)
 
@@ -87,10 +76,8 @@ func TestBodyRecordHandler_CreateBodyRecord_Error(t *testing.T) {
 		WeightKg: &wrapperspb.DoubleValue{Value: weight},
 	})
 
-	// Create a test context using the helper from main_test.go
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.CreateBodyRecord(testCtx, req)
 
 	// Check for errors
@@ -103,12 +90,9 @@ func TestBodyRecordHandler_CreateBodyRecord_Error(t *testing.T) {
 		t.Errorf("Expected nil response, got %v", resp)
 	}
 }
-
 func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup and user creation are handled by TestMain
+	resetDB(t, testPool)
 
-	// Use global testPool and testLogger
 	repo := testutil.NewBodyRecordRepository(testPool)
 	handler := NewBodyRecordHandler(repo, testLogger)
 
@@ -123,7 +107,6 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 	weight2 := 76.0
 	bodyFat := 15.5
 
-	// Use global testQueries and testUserID
 	_, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, today, &weight1, nil)
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
@@ -134,9 +117,7 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
 
-	// Handler already created above using global resources
 
-	// Test parameters
 	pageSize := int32(10)
 	pageNumber := int32(1)
 
@@ -148,10 +129,8 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 		},
 	})
 
-	// Create a test context using the helper from main_test.go
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.ListBodyRecords(testCtx, req)
 
 	// Check for errors
@@ -181,12 +160,9 @@ func TestBodyRecordHandler_ListBodyRecords(t *testing.T) {
 		t.Errorf("Expected current page %d, got %d", pageNumber, resp.Msg.Pagination.CurrentPage)
 	}
 }
-
 func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
-	resetDB(t, testPool) // Reset DB state for this test
-	// Setup and user creation are handled by TestMain
+	resetDB(t, testPool)
 
-	// Use global testPool and testLogger
 	repo := testutil.NewBodyRecordRepository(testPool)
 	handler := NewBodyRecordHandler(repo, testLogger)
 
@@ -203,7 +179,6 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 	weight3 := 77.0
 	bodyFat := 15.5
 
-	// Use global testQueries and testUserID
 	_, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, today, &weight1, nil)
 	if err != nil {
 		t.Fatalf("Failed to create test body record: %v", err)
@@ -219,9 +194,7 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 		t.Fatalf("Failed to create test body record: %v", err)
 	}
 
-	// Handler already created above using global resources
 
-	// Test date range (last 3 days)
 	startDate := today.Add(-3 * 24 * time.Hour)
 	endDate := today
 
@@ -231,10 +204,8 @@ func TestBodyRecordHandler_GetBodyRecordsByDateRange(t *testing.T) {
 		EndDate:   endDate.Format("2006-01-02"),
 	})
 
-	// Create a test context using the helper from main_test.go
 	testCtx := newTestContext(ctx)
 
-	// Call the method being tested
 	resp, err := handler.GetBodyRecordsByDateRange(testCtx, req)
 
 	// Check for errors
