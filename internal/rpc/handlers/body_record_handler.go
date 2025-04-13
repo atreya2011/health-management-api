@@ -18,12 +18,12 @@ import (
 
 // BodyRecordHandler implements the body record service RPCs
 type BodyRecordHandler struct {
-	repo *postgres.PgBodyRecordRepository // Use concrete repository type
+	repo *postgres.BodyRecordRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewBodyRecordHandler creates a new body record handler
-func NewBodyRecordHandler(repo *postgres.PgBodyRecordRepository, log *slog.Logger) *BodyRecordHandler { // Use concrete repository type
+func NewBodyRecordHandler(repo *postgres.BodyRecordRepository, log *slog.Logger) *BodyRecordHandler { // Use concrete repository type
 	return &BodyRecordHandler{
 		repo: repo,
 		log:  log,
@@ -221,8 +221,8 @@ func (h *BodyRecordHandler) GetBodyRecordsByDateRange(ctx context.Context, req *
 // toProtoBodyRecord converts a db.BodyRecord (sqlc generated) to a v1.BodyRecord
 func toProtoBodyRecord(record db.BodyRecord) *v1.BodyRecord { // Accept db.BodyRecord
 	protoRecord := &v1.BodyRecord{
-		Id:        record.ID.String(),
-		UserId:    record.UserID.String(),
+		Id:     record.ID.String(),
+		UserId: record.UserID.String(),
 		// Date needs conversion from pgtype.Date
 		CreatedAt: timestamppb.New(record.CreatedAt),
 		UpdatedAt: timestamppb.New(record.UpdatedAt),

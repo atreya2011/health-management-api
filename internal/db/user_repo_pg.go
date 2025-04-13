@@ -15,20 +15,20 @@ import (
 // ErrUserNotFound is returned when a user is not found
 var ErrUserNotFound = errors.New("user not found")
 
-// PgUserRepository provides database operations for User
-type PgUserRepository struct {
+// UserRepository provides database operations for User
+type UserRepository struct {
 	q *db.Queries
 }
 
-// NewPgUserRepository creates a new PostgreSQL user repository
-func NewPgUserRepository(pool *pgxpool.Pool) *PgUserRepository { // Return exported type
-	return &PgUserRepository{ // Use exported type
+// NewUserRepository creates a new PostgreSQL user repository
+func NewUserRepository(pool *pgxpool.Pool) *UserRepository { // Return exported type
+	return &UserRepository{ // Use exported type
 		q: db.New(pool),
 	}
 }
 
 // Create creates a new user record
-func (r *PgUserRepository) Create(ctx context.Context, subjectID string) (db.User, error) {
+func (r *UserRepository) Create(ctx context.Context, subjectID string) (db.User, error) {
 	dbUser, err := r.q.CreateUser(ctx, subjectID)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -48,7 +48,7 @@ func (r *PgUserRepository) Create(ctx context.Context, subjectID string) (db.Use
 }
 
 // FindByID retrieves a user by their internal UUID
-func (r *PgUserRepository) FindByID(ctx context.Context, id uuid.UUID) (db.User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (db.User, error) {
 	dbUser, err := r.q.GetUserByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -61,7 +61,7 @@ func (r *PgUserRepository) FindByID(ctx context.Context, id uuid.UUID) (db.User,
 }
 
 // FindBySubjectID retrieves a user by their JWT Subject claim
-func (r *PgUserRepository) FindBySubjectID(ctx context.Context, subjectID string) (db.User, error) {
+func (r *UserRepository) FindBySubjectID(ctx context.Context, subjectID string) (db.User, error) {
 	dbUser, err := r.q.GetUserBySubjectID(ctx, subjectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

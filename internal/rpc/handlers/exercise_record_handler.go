@@ -19,12 +19,12 @@ import (
 
 // ExerciseRecordHandler implements the exercise record service RPCs
 type ExerciseRecordHandler struct {
-	repo *postgres.PgExerciseRecordRepository // Use concrete repository type
+	repo *postgres.ExerciseRecordRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewExerciseRecordHandler creates a new exercise record handler
-func NewExerciseRecordHandler(repo *postgres.PgExerciseRecordRepository, log *slog.Logger) *ExerciseRecordHandler { // Use concrete repository type
+func NewExerciseRecordHandler(repo *postgres.ExerciseRecordRepository, log *slog.Logger) *ExerciseRecordHandler { // Use concrete repository type
 	return &ExerciseRecordHandler{
 		repo: repo,
 		log:  log,

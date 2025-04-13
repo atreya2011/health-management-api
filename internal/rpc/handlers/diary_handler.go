@@ -21,12 +21,12 @@ import (
 
 // DiaryHandler implements the diary service RPCs
 type DiaryHandler struct {
-	repo *postgres.PgDiaryEntryRepository // Use concrete repository type
+	repo *postgres.DiaryEntryRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewDiaryHandler creates a new diary handler
-func NewDiaryHandler(repo *postgres.PgDiaryEntryRepository, log *slog.Logger) *DiaryHandler { // Use concrete repository type
+func NewDiaryHandler(repo *postgres.DiaryEntryRepository, log *slog.Logger) *DiaryHandler { // Use concrete repository type
 	return &DiaryHandler{
 		repo: repo,
 		log:  log,
@@ -303,9 +303,9 @@ func (h *DiaryHandler) DeleteDiaryEntry(ctx context.Context, req *connect.Reques
 // toProtoDiaryEntry converts a db.DiaryEntry (sqlc generated) to a v1.DiaryEntry
 func toProtoDiaryEntry(entry db.DiaryEntry) *v1.DiaryEntry { // Accept db.DiaryEntry
 	protoEntry := &v1.DiaryEntry{
-		Id:        entry.ID.String(),
-		UserId:    entry.UserID.String(),
-		Content:   entry.Content,
+		Id:      entry.ID.String(),
+		UserId:  entry.UserID.String(),
+		Content: entry.Content,
 		// EntryDate needs conversion from pgtype.Date
 		CreatedAt: timestamppb.New(entry.CreatedAt),
 		UpdatedAt: timestamppb.New(entry.UpdatedAt),

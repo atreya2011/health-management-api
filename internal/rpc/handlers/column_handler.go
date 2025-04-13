@@ -18,12 +18,12 @@ import (
 
 // ColumnHandler implements the column service RPCs
 type ColumnHandler struct {
-	repo *postgres.PgColumnRepository // Use concrete repository type
+	repo *postgres.ColumnRepository // Use concrete repository type
 	log  *slog.Logger
 }
 
 // NewColumnHandler creates a new column handler
-func NewColumnHandler(repo *postgres.PgColumnRepository, log *slog.Logger) *ColumnHandler { // Use concrete repository type
+func NewColumnHandler(repo *postgres.ColumnRepository, log *slog.Logger) *ColumnHandler { // Use concrete repository type
 	return &ColumnHandler{
 		repo: repo,
 		log:  log,

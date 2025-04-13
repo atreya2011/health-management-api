@@ -95,11 +95,11 @@ func runServer() {
 	logger.Info("Database schema verified", "column_name", columnName)
 
 	// Initialize repositories
-	userRepo := postgres.NewPgUserRepository(dbPool)
-	bodyRecordRepo := postgres.NewPgBodyRecordRepository(dbPool)
-	diaryEntryRepo := postgres.NewPgDiaryEntryRepository(dbPool)
-	exerciseRecordRepo := postgres.NewPgExerciseRecordRepository(dbPool)
-	columnRepo := postgres.NewPgColumnRepository(dbPool)
+	userRepo := postgres.NewUserRepository(dbPool)
+	bodyRecordRepo := postgres.NewBodyRecordRepository(dbPool)
+	diaryEntryRepo := postgres.NewDiaryEntryRepository(dbPool)
+	exerciseRecordRepo := postgres.NewExerciseRecordRepository(dbPool)
+	columnRepo := postgres.NewColumnRepository(dbPool)
 
 	// Initialize application services
 	// bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger) // Removed

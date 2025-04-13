@@ -46,6 +46,6 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 }
 
 // NewExerciseRecordRepository creates a new exercise record repository for testing
-func NewExerciseRecordRepository(pool *pgxpool.Pool) *postgres.PgExerciseRecordRepository { // Return concrete type
-	return postgres.NewPgExerciseRecordRepository(pool)
+func NewExerciseRecordRepository(pool *pgxpool.Pool) *postgres.ExerciseRecordRepository { // Return concrete type
+	return postgres.NewExerciseRecordRepository(pool)
 }

@@ -11,20 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PgBodyRecordRepository provides database operations for BodyRecord
-type PgBodyRecordRepository struct {
+// BodyRecordRepository provides database operations for BodyRecord
+type BodyRecordRepository struct {
 	q *db.Queries
 }
 
-// NewPgBodyRecordRepository creates a new PostgreSQL body record repository
-func NewPgBodyRecordRepository(pool *pgxpool.Pool) *PgBodyRecordRepository { // Return exported type
-	return &PgBodyRecordRepository{ // Use exported type
+// NewBodyRecordRepository creates a new PostgreSQL body record repository
+func NewBodyRecordRepository(pool *pgxpool.Pool) *BodyRecordRepository { // Return exported type
+	return &BodyRecordRepository{ // Use exported type
 		q: db.New(pool),
 	}
 }
 
 // Save creates a new body record or updates an existing one based on UserID and Date
-func (r *PgBodyRecordRepository) Save(ctx context.Context, userID uuid.UUID, date time.Time, weightKg *float64, bodyFatPercentage *float64) (db.BodyRecord, error) {
+func (r *BodyRecordRepository) Save(ctx context.Context, userID uuid.UUID, date time.Time, weightKg *float64, bodyFatPercentage *float64) (db.BodyRecord, error) {
 	var weightVal, bodyFatVal pgtype.Numeric
 
 	// Convert *float64 to pgtype.Numeric by scanning from string
@@ -66,7 +66,7 @@ func (r *PgBodyRecordRepository) Save(ctx context.Context, userID uuid.UUID, dat
 }
 
 // FindByUser retrieves paginated body records for a user
-func (r *PgBodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]db.BodyRecord, error) {
+func (r *BodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]db.BodyRecord, error) {
 	params := db.ListBodyRecordsByUserParams{
 		UserID: userID,
 		Limit:  int32(limit),
@@ -83,7 +83,7 @@ func (r *PgBodyRecordRepository) FindByUser(ctx context.Context, userID uuid.UUI
 }
 
 // FindByUserAndDateRange retrieves body records for a user within a specific date range
-func (r *PgBodyRecordRepository) FindByUserAndDateRange(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]db.BodyRecord, error) {
+func (r *BodyRecordRepository) FindByUserAndDateRange(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]db.BodyRecord, error) {
 	pgStartDate := pgtype.Date{Time: startDate, Valid: true}
 	pgEndDate := pgtype.Date{Time: endDate, Valid: true}
 
@@ -103,7 +103,7 @@ func (r *PgBodyRecordRepository) FindByUserAndDateRange(ctx context.Context, use
 }
 
 // CountByUser returns the total number of body records for a user
-func (r *PgBodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (r *BodyRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	count, err := r.q.CountBodyRecordsByUser(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count body records: %w", err)

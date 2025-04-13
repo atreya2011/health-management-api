@@ -16,20 +16,20 @@ import (
 // ErrDiaryEntryNotFound is returned when a diary entry is not found
 var ErrDiaryEntryNotFound = errors.New("diary entry not found")
 
-// PgDiaryEntryRepository provides database operations for DiaryEntry
-type PgDiaryEntryRepository struct {
+// DiaryEntryRepository provides database operations for DiaryEntry
+type DiaryEntryRepository struct {
 	q *db.Queries
 }
 
-// NewPgDiaryEntryRepository creates a new PostgreSQL diary entry repository
-func NewPgDiaryEntryRepository(pool *pgxpool.Pool) *PgDiaryEntryRepository { // Return exported type
-	return &PgDiaryEntryRepository{ // Use exported type
+// NewDiaryEntryRepository creates a new PostgreSQL diary entry repository
+func NewDiaryEntryRepository(pool *pgxpool.Pool) *DiaryEntryRepository { // Return exported type
+	return &DiaryEntryRepository{ // Use exported type
 		q: db.New(pool),
 	}
 }
 
 // Create creates a new diary entry
-func (r *PgDiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, title *string, content string, entryDate time.Time) (db.DiaryEntry, error) {
+func (r *DiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, title *string, content string, entryDate time.Time) (db.DiaryEntry, error) {
 	var titleVal pgtype.Text
 	if title != nil {
 		titleVal = pgtype.Text{String: *title, Valid: true}
@@ -54,7 +54,7 @@ func (r *PgDiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, t
 }
 
 // Update updates an existing diary entry
-func (r *PgDiaryEntryRepository) Update(ctx context.Context, id, userID uuid.UUID, title *string, content string) (db.DiaryEntry, error) {
+func (r *DiaryEntryRepository) Update(ctx context.Context, id, userID uuid.UUID, title *string, content string) (db.DiaryEntry, error) {
 	var titleVal pgtype.Text
 	if title != nil {
 		titleVal = pgtype.Text{String: *title, Valid: true}
@@ -80,7 +80,7 @@ func (r *PgDiaryEntryRepository) Update(ctx context.Context, id, userID uuid.UUI
 }
 
 // FindByID retrieves a diary entry by ID and user ID
-func (r *PgDiaryEntryRepository) FindByID(ctx context.Context, id, userID uuid.UUID) (db.DiaryEntry, error) {
+func (r *DiaryEntryRepository) FindByID(ctx context.Context, id, userID uuid.UUID) (db.DiaryEntry, error) {
 	params := db.GetDiaryEntryByIDParams{
 		ID:     id,
 		UserID: userID,
@@ -99,7 +99,7 @@ func (r *PgDiaryEntryRepository) FindByID(ctx context.Context, id, userID uuid.U
 }
 
 // FindByUser retrieves paginated diary entries for a user
-func (r *PgDiaryEntryRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]db.DiaryEntry, error) {
+func (r *DiaryEntryRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]db.DiaryEntry, error) {
 	params := db.ListDiaryEntriesByUserParams{
 		UserID: userID,
 		Limit:  int32(limit),
@@ -116,7 +116,7 @@ func (r *PgDiaryEntryRepository) FindByUser(ctx context.Context, userID uuid.UUI
 }
 
 // Delete deletes a diary entry by ID and user ID
-func (r *PgDiaryEntryRepository) Delete(ctx context.Context, id, userID uuid.UUID) error {
+func (r *DiaryEntryRepository) Delete(ctx context.Context, id, userID uuid.UUID) error {
 	params := db.DeleteDiaryEntryParams{
 		ID:     id,
 		UserID: userID,
@@ -136,7 +136,7 @@ func (r *PgDiaryEntryRepository) Delete(ctx context.Context, id, userID uuid.UUI
 }
 
 // CountByUser returns the total number of diary entries for a user
-func (r *PgDiaryEntryRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (r *DiaryEntryRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	count, err := r.q.CountDiaryEntriesByUser(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count diary entries: %w", err)

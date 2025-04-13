@@ -40,6 +40,6 @@ func CreateTestDiaryEntry(ctx context.Context, queries *db.Queries, userID uuid.
 }
 
 // NewDiaryEntryRepository creates a new diary entry repository for testing
-func NewDiaryEntryRepository(pool *pgxpool.Pool) *postgres.PgDiaryEntryRepository { // Return concrete type
-	return postgres.NewPgDiaryEntryRepository(pool)
+func NewDiaryEntryRepository(pool *pgxpool.Pool) *postgres.DiaryEntryRepository { // Return concrete type
+	return postgres.NewDiaryEntryRepository(pool)
 }

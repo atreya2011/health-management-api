@@ -24,7 +24,7 @@ type JWTConfig struct {
 }
 
 // AuthInterceptor creates a Connect interceptor for JWT authentication
-func AuthInterceptor(jwtConfig *JWTConfig, userRepo *postgres.PgUserRepository, logger *slog.Logger) connect.UnaryInterceptorFunc { // Use concrete repo type
+func AuthInterceptor(jwtConfig *JWTConfig, userRepo *postgres.UserRepository, logger *slog.Logger) connect.UnaryInterceptorFunc { // Use concrete repo type
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 			// Skip auth for public endpoints (if any)

@@ -61,8 +61,8 @@ func runSeed() {
 	logger.Info("Database connection pool established")
 
 	// Initialize repositories
-	userRepo := postgres.NewPgUserRepository(dbPool)
-	bodyRecordRepo := postgres.NewPgBodyRecordRepository(dbPool)
+	userRepo := postgres.NewUserRepository(dbPool)
+	bodyRecordRepo := postgres.NewBodyRecordRepository(dbPool)
 	// Initialize other repositories as needed
 
 	// Create a context with timeout

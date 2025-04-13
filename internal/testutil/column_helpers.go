@@ -12,8 +12,8 @@ import (
 )
 
 // NewColumnRepository creates a new column repository for testing
-func NewColumnRepository(pool *pgxpool.Pool) *postgres.PgColumnRepository { // Return concrete type
-	return postgres.NewPgColumnRepository(pool)
+func NewColumnRepository(pool *pgxpool.Pool) *postgres.ColumnRepository { // Return concrete type
+	return postgres.NewColumnRepository(pool)
 }
 
 // CreateTestColumn creates a test column in the database using the provided pool

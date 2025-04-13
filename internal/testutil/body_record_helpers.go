@@ -52,6 +52,6 @@ func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.
 }
 
 // NewBodyRecordRepository creates a new body record repository for testing
-func NewBodyRecordRepository(pool *pgxpool.Pool) *postgres.PgBodyRecordRepository { // Return concrete type
-	return postgres.NewPgBodyRecordRepository(pool)
+func NewBodyRecordRepository(pool *pgxpool.Pool) *postgres.BodyRecordRepository { // Return concrete type
+	return postgres.NewBodyRecordRepository(pool)
 }

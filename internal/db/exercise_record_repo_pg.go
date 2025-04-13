@@ -16,20 +16,20 @@ import (
 // ErrExerciseRecordNotFound is returned when an exercise record is not found
 var ErrExerciseRecordNotFound = errors.New("exercise record not found")
 
-// PgExerciseRecordRepository provides database operations for ExerciseRecord
-type PgExerciseRecordRepository struct {
+// ExerciseRecordRepository provides database operations for ExerciseRecord
+type ExerciseRecordRepository struct {
 	q *db.Queries
 }
 
-// NewPgExerciseRecordRepository creates a new PostgreSQL exercise record repository
-func NewPgExerciseRecordRepository(pool *pgxpool.Pool) *PgExerciseRecordRepository { // Return exported type
-	return &PgExerciseRecordRepository{ // Use exported type
+// NewExerciseRecordRepository creates a new PostgreSQL exercise record repository
+func NewExerciseRecordRepository(pool *pgxpool.Pool) *ExerciseRecordRepository { // Return exported type
+	return &ExerciseRecordRepository{ // Use exported type
 		q: db.New(pool),
 	}
 }
 
 // Create creates a new exercise record
-func (r *PgExerciseRecordRepository) Create(ctx context.Context, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (db.ExerciseRecord, error) {
+func (r *ExerciseRecordRepository) Create(ctx context.Context, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (db.ExerciseRecord, error) {
 	var durationMinutesVal, caloriesBurnedVal pgtype.Int4
 
 	if durationMinutes != nil {
@@ -60,7 +60,7 @@ func (r *PgExerciseRecordRepository) Create(ctx context.Context, userID uuid.UUI
 }
 
 // FindByUser retrieves paginated exercise records for a user
-func (r *PgExerciseRecordRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]db.ExerciseRecord, error) {
+func (r *ExerciseRecordRepository) FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]db.ExerciseRecord, error) {
 	params := db.ListExerciseRecordsByUserParams{
 		UserID: userID,
 		Limit:  int32(limit),
@@ -77,7 +77,7 @@ func (r *PgExerciseRecordRepository) FindByUser(ctx context.Context, userID uuid
 }
 
 // Delete deletes an exercise record by ID and user ID
-func (r *PgExerciseRecordRepository) Delete(ctx context.Context, id, userID uuid.UUID) error {
+func (r *ExerciseRecordRepository) Delete(ctx context.Context, id, userID uuid.UUID) error {
 	params := db.DeleteExerciseRecordParams{
 		ID:     id,
 		UserID: userID,
@@ -97,7 +97,7 @@ func (r *PgExerciseRecordRepository) Delete(ctx context.Context, id, userID uuid
 }
 
 // CountByUser returns the total number of exercise records for a user
-func (r *PgExerciseRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (r *ExerciseRecordRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	count, err := r.q.CountExerciseRecordsByUser(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count exercise records: %w", err)
