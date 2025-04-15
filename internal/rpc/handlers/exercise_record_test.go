@@ -6,24 +6,31 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/atreya2011/health-management-api/internal/repo"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 )
 
-func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
+func TestCreateExerciseRecord(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	recordedAtPb := timestamppb.New(recordedAt)
 
 	testCases := []struct {
-		name        string
-		req         *v1.CreateExerciseRecordRequest
-		expectError bool
-		verify      func(t *testing.T, resp *connect.Response[v1.CreateExerciseRecordResponse], err error)
+		name         string
+		req          *v1.CreateExerciseRecordRequest
+		expectError  bool
+		expectedResp *v1.CreateExerciseRecordResponse
 	}{
 		{
 			name: "Success - Full Record",
@@ -34,20 +41,14 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 				RecordedAt:      recordedAtPb,
 			},
 			expectError: false,
-			verify: func(t *testing.T, resp *connect.Response[v1.CreateExerciseRecordResponse], err error) {
-				require.NoError(t, err)
-				require.NotNil(t, resp)
-				require.NotNil(t, resp.Msg)
-				require.NotNil(t, resp.Msg.ExerciseRecord)
-				assert.Equal(t, testUserID.String(), resp.Msg.ExerciseRecord.UserId)
-				assert.Equal(t, "Running", resp.Msg.ExerciseRecord.ExerciseName)
-				require.NotNil(t, resp.Msg.ExerciseRecord.DurationMinutes)
-				assert.Equal(t, int32(30), resp.Msg.ExerciseRecord.DurationMinutes.Value)
-				require.NotNil(t, resp.Msg.ExerciseRecord.CaloriesBurned)
-				assert.Equal(t, int32(250), resp.Msg.ExerciseRecord.CaloriesBurned.Value)
-				require.NotNil(t, resp.Msg.ExerciseRecord.RecordedAt)
-				// Compare timestamps carefully, allowing for minor differences if necessary
-				assert.WithinDuration(t, recordedAt, resp.Msg.ExerciseRecord.RecordedAt.AsTime(), time.Second)
+			expectedResp: &v1.CreateExerciseRecordResponse{
+				ExerciseRecord: &v1.ExerciseRecord{
+					UserId:          testUserID.String(),
+					ExerciseName:    "Running",
+					DurationMinutes: wrapperspb.Int32(30),
+					CaloriesBurned:  wrapperspb.Int32(250),
+					RecordedAt:      recordedAtPb,
+				},
 			},
 		},
 		{
@@ -55,60 +56,48 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 			req: &v1.CreateExerciseRecordRequest{
 				ExerciseName: "Walking",
 				RecordedAt:   recordedAtPb,
-				// Duration and Calories omitted
 			},
 			expectError: false,
-			verify: func(t *testing.T, resp *connect.Response[v1.CreateExerciseRecordResponse], err error) {
-				require.NoError(t, err)
-				require.NotNil(t, resp)
-				require.NotNil(t, resp.Msg.ExerciseRecord)
-				assert.Equal(t, "Walking", resp.Msg.ExerciseRecord.ExerciseName)
-				assert.Nil(t, resp.Msg.ExerciseRecord.DurationMinutes)
-				assert.Nil(t, resp.Msg.ExerciseRecord.CaloriesBurned)
+			expectedResp: &v1.CreateExerciseRecordResponse{
+				ExerciseRecord: &v1.ExerciseRecord{
+					UserId:       testUserID.String(),
+					ExerciseName: "Walking",
+					RecordedAt:   recordedAtPb,
+				},
 			},
 		},
 		{
 			name: "Error - Invalid Duration",
 			req: &v1.CreateExerciseRecordRequest{
 				ExerciseName:    "Cycling",
-				DurationMinutes: wrapperspb.Int32(-10), // Negative duration
+				DurationMinutes: wrapperspb.Int32(-10),
 				RecordedAt:      recordedAtPb,
 			},
-			expectError: true,
-			verify: func(t *testing.T, resp *connect.Response[v1.CreateExerciseRecordResponse], err error) {
-				require.Error(t, err)
-				assert.Nil(t, resp)
-			},
+			expectError:  true,
+			expectedResp: nil,
 		},
 		{
-			name: "Error - Missing Exercise Name", // Assuming name is required
+			name: "Error - Missing Exercise Name",
 			req: &v1.CreateExerciseRecordRequest{
-				ExerciseName: "", // Empty name
+				ExerciseName: "",
 				RecordedAt:   recordedAtPb,
 			},
-			expectError: true,
-			verify: func(t *testing.T, resp *connect.Response[v1.CreateExerciseRecordResponse], err error) {
-				require.Error(t, err)
-				assert.Nil(t, resp)
-			},
+			expectError:  true,
+			expectedResp: nil,
 		},
 		{
-			// Updated based on test log: Handler does not seem to error on nil RecordedAt
 			name: "Success - Missing RecordedAt",
 			req: &v1.CreateExerciseRecordRequest{
 				ExerciseName: "Swimming",
-				RecordedAt:   nil, // Missing timestamp
+				RecordedAt:   nil,
 			},
-			expectError: false, // Changed expectation based on logs
-			verify: func(t *testing.T, resp *connect.Response[v1.CreateExerciseRecordResponse], err error) {
-				require.NoError(t, err, "Expected no error even with missing RecordedAt")
-				require.NotNil(t, resp)
-				require.NotNil(t, resp.Msg)
-				require.NotNil(t, resp.Msg.ExerciseRecord)
-				assert.Equal(t, "Swimming", resp.Msg.ExerciseRecord.ExerciseName)
-				// Check if RecordedAt is nil or has a default value in the response, depending on handler logic
-				// For now, just ensure no error occurred and response is valid.
-				// assert.Nil(t, resp.Msg.ExerciseRecord.RecordedAt) // Or check for default time
+			expectError: false,
+			expectedResp: &v1.CreateExerciseRecordResponse{
+				ExerciseRecord: &v1.ExerciseRecord{
+					UserId:       testUserID.String(),
+					ExerciseName: "Swimming",
+					RecordedAt:   nil,
+				},
 			},
 		},
 	}
@@ -116,7 +105,7 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := testutil.NewExerciseRecordRepository(testPool)
+			repo := repo.NewExerciseRecordRepository(testPool)
 			handler := NewExerciseRecordHandler(repo, testLogger)
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
@@ -124,70 +113,116 @@ func TestExerciseRecordHandler_CreateExerciseRecord(t *testing.T) {
 			req := connect.NewRequest(tc.req)
 			resp, err := handler.CreateExerciseRecord(testCtx, req)
 
-			tc.verify(t, resp, err)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+				require.NotNil(t, resp.Msg.ExerciseRecord)
+				require.NotEmpty(t, resp.Msg.ExerciseRecord.Id)
+
+				cmpOpts := []cmp.Option{
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&v1.ExerciseRecord{}, "id", "created_at", "updated_at", "recorded_at"),
+					cmpopts.EquateApproxTime(time.Second),
+				}
+				if tc.req.RecordedAt == nil && tc.expectedResp != nil && tc.expectedResp.ExerciseRecord != nil {
+				}
+
+				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
+					t.Errorf("CreateExerciseRecord response mismatch (-want +got):\n%s", diff)
+				}
+			}
 		})
 	}
 }
 
-func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
+func TestListExerciseRecords(t *testing.T) {
 	resetDB(t, testPool)
-	repo := testutil.NewExerciseRecordRepository(testPool)
+	repo := repo.NewExerciseRecordRepository(testPool)
 	handler := NewExerciseRecordHandler(repo, testLogger)
 	ctx := context.Background()
 	testCtx := newTestContext(ctx)
 
-	// Setup: Create test records
 	today := time.Now().UTC()
 	yesterday := today.Add(-24 * time.Hour)
 	duration1, duration2 := int32(30), int32(45)
 	calories1, calories2 := int32(250), int32(350)
-	_, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Running", &duration1, &calories1, today)
+	recordToday, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Running", &duration1, &calories1, today)
 	require.NoError(t, err)
-	_, err = testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Weight Training", &duration2, &calories2, yesterday)
+	recordYesterday, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Weight Training", &duration2, &calories2, yesterday)
 	require.NoError(t, err)
 
+	protoToday := ToProtoExerciseRecord(recordToday)
+	protoYesterday := ToProtoExerciseRecord(recordYesterday)
+
 	testCases := []struct {
-		name        string
-		req         *v1.ListExerciseRecordsRequest
-		expectLen   int
-		expectTotal int32
-		expectPage  int32
+		name         string
+		req          *v1.ListExerciseRecordsRequest
+		expectError  bool
+		expectedResp *v1.ListExerciseRecordsResponse
 	}{
 		{
 			name: "Default Pagination",
 			req: &v1.ListExerciseRecordsRequest{
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   2,
-			expectTotal: 2,
-			expectPage:  1,
+			expectError: false,
+			expectedResp: &v1.ListExerciseRecordsResponse{
+				ExerciseRecords: []*v1.ExerciseRecord{protoToday, protoYesterday},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "Pagination - Page 1 Size 1",
 			req: &v1.ListExerciseRecordsRequest{
 				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 1},
 			},
-			expectLen:   1,
-			expectTotal: 2,
-			expectPage:  1,
+			expectError: false,
+			expectedResp: &v1.ListExerciseRecordsResponse{
+				ExerciseRecords: []*v1.ExerciseRecord{protoToday},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  2,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "Pagination - Page 2 Size 1",
 			req: &v1.ListExerciseRecordsRequest{
 				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 2},
 			},
-			expectLen:   1,
-			expectTotal: 2,
-			expectPage:  2,
+			expectError: false,
+			expectedResp: &v1.ListExerciseRecordsResponse{
+				ExerciseRecords: []*v1.ExerciseRecord{protoYesterday},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  2,
+					CurrentPage: 2,
+				},
+			},
 		},
 		{
 			name: "Pagination - Page 3 Size 1 (Empty)",
 			req: &v1.ListExerciseRecordsRequest{
 				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 3},
 			},
-			expectLen:   0,
-			expectTotal: 2,
-			expectPage:  3,
+			expectError: false,
+			expectedResp: &v1.ListExerciseRecordsResponse{
+				ExerciseRecords: []*v1.ExerciseRecord{},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  2,
+					CurrentPage: 3,
+				},
+			},
 		},
 	}
 
@@ -196,95 +231,128 @@ func TestExerciseRecordHandler_ListExerciseRecords(t *testing.T) {
 			req := connect.NewRequest(tc.req)
 			resp, err := handler.ListExerciseRecords(testCtx, req)
 
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.NotNil(t, resp.Msg)
-			assert.Len(t, resp.Msg.ExerciseRecords, tc.expectLen)
-			require.NotNil(t, resp.Msg.Pagination)
-			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
-			assert.Equal(t, tc.expectPage, resp.Msg.Pagination.CurrentPage)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+
+				cmpOpts := []cmp.Option{
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&v1.ExerciseRecord{}, "created_at", "updated_at"),
+					cmpopts.EquateApproxTime(time.Second),
+					cmpopts.SortSlices(func(a, b *v1.ExerciseRecord) bool {
+						if a.RecordedAt == nil || b.RecordedAt == nil {
+							return a.RecordedAt != nil
+						}
+						return a.RecordedAt.AsTime().After(b.RecordedAt.AsTime())
+					}),
+				}
+
+				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
+					t.Errorf("ListExerciseRecords response mismatch (-want +got):\n%s", diff)
+				}
+			}
 		})
 	}
 }
 
-func TestExerciseRecordHandler_DeleteExerciseRecord(t *testing.T) {
+func TestDeleteExerciseRecord(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	duration := int32(30)
 	calories := int32(250)
 
 	testCases := []struct {
-		name        string
-		setup       func(t *testing.T, ctx context.Context) uuid.UUID // Returns the ID of the record to delete
-		reqID       func(recordID uuid.UUID) string                   // Function to generate request ID string
-		expectError bool
-		verify      func(t *testing.T, resp *connect.Response[v1.DeleteExerciseRecordResponse], err error, recordID uuid.UUID, handler *ExerciseRecordHandler, testCtx context.Context)
+		name         string
+		setup        func(t *testing.T, ctx context.Context) db.ExerciseRecord
+		reqID        func(record db.ExerciseRecord) string
+		expectError  bool
+		expectedResp *v1.DeleteExerciseRecordResponse
+		verifyAfter  func(t *testing.T, handler *ExerciseRecordHandler, testCtx context.Context, recordID uuid.UUID)
 	}{
 		{
 			name: "Success - Delete Existing Record",
-			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
+			setup: func(t *testing.T, ctx context.Context) db.ExerciseRecord {
 				record, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Record to Delete", &duration, &calories, recordedAt)
 				require.NoError(t, err)
-				return record.ID
+				return record
 			},
-			reqID: func(recordID uuid.UUID) string { return recordID.String() },
+			reqID:       func(record db.ExerciseRecord) string { return record.ID.String() },
 			expectError: false,
-			verify: func(t *testing.T, resp *connect.Response[v1.DeleteExerciseRecordResponse], err error, recordID uuid.UUID, handler *ExerciseRecordHandler, testCtx context.Context) {
-				require.NoError(t, err)
-				require.NotNil(t, resp)
-				require.NotNil(t, resp.Msg)
-				assert.True(t, resp.Msg.Success)
-
-				// Verify deletion by listing
+			expectedResp: &v1.DeleteExerciseRecordResponse{
+				Success: true,
+			},
+			verifyAfter: func(t *testing.T, handler *ExerciseRecordHandler, testCtx context.Context, recordID uuid.UUID) {
 				listReq := connect.NewRequest(&v1.ListExerciseRecordsRequest{Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1}})
 				listResp, listErr := handler.ListExerciseRecords(testCtx, listReq)
 				require.NoError(t, listErr)
+				require.NotNil(t, listResp)
+				require.NotNil(t, listResp.Msg)
 				assert.Len(t, listResp.Msg.ExerciseRecords, 0, "Expected 0 records after deletion")
 			},
 		},
 		{
 			name: "Error - Delete Non-existent Record",
-			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
-				return uuid.New() // Just return a random ID
+			setup: func(t *testing.T, ctx context.Context) db.ExerciseRecord {
+				return db.ExerciseRecord{ID: uuid.New()}
 			},
-			reqID: func(recordID uuid.UUID) string { return recordID.String() },
-			expectError: false, // WORKAROUND: Expecting nil error due to repo/handler bug
-			verify: func(t *testing.T, resp *connect.Response[v1.DeleteExerciseRecordResponse], err error, recordID uuid.UUID, handler *ExerciseRecordHandler, testCtx context.Context) {
-				// WORKAROUND: Assert NoError because the handler currently doesn't return one.
-				require.NoError(t, err, "WORKAROUND: Expected nil error when deleting non-existent record due to handler bug")
-				require.NotNil(t, resp, "WORKAROUND: Response should not be nil even if record didn't exist")
-				require.NotNil(t, resp.Msg)
-				assert.True(t, resp.Msg.Success, "WORKAROUND: Response should indicate success even if record didn't exist")
+			reqID:       func(record db.ExerciseRecord) string { return record.ID.String() },
+			expectError: false,
+			expectedResp: &v1.DeleteExerciseRecordResponse{
+				Success: true,
 			},
+			verifyAfter: nil,
 		},
 		{
 			name: "Error - Invalid ID Format",
-			setup: func(t *testing.T, ctx context.Context) uuid.UUID {
-				return uuid.Nil // Placeholder
+			setup: func(t *testing.T, ctx context.Context) db.ExerciseRecord {
+				return db.ExerciseRecord{}
 			},
-			reqID: func(recordID uuid.UUID) string { return "invalid-uuid" },
-			expectError: true,
-			verify: func(t *testing.T, resp *connect.Response[v1.DeleteExerciseRecordResponse], err error, recordID uuid.UUID, handler *ExerciseRecordHandler, testCtx context.Context) {
-				require.Error(t, err)
-				assert.Nil(t, resp)
-			},
+			reqID:        func(record db.ExerciseRecord) string { return "invalid-uuid" },
+			expectError:  true,
+			expectedResp: nil,
+			verifyAfter:  nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := testutil.NewExerciseRecordRepository(testPool)
+			repo := repo.NewExerciseRecordRepository(testPool)
 			handler := NewExerciseRecordHandler(repo, testLogger)
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 
-			recordID := tc.setup(t, ctx)
+			dbRecord := tc.setup(t, ctx)
+			reqIDStr := tc.reqID(dbRecord)
 			req := connect.NewRequest(&v1.DeleteExerciseRecordRequest{
-				Id: tc.reqID(recordID),
+				Id: reqIDStr,
 			})
 
 			resp, err := handler.DeleteExerciseRecord(testCtx, req)
-			tc.verify(t, resp, err, recordID, handler, testCtx)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+
+				cmpOpts := []cmp.Option{
+					protocmp.Transform(),
+				}
+
+				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
+					t.Errorf("DeleteExerciseRecord response mismatch (-want +got):\n%s", diff)
+				}
+			}
+
+			if tc.verifyAfter != nil {
+				tc.verifyAfter(t, handler, testCtx, dbRecord.ID)
+			}
 		})
 	}
 }

@@ -81,7 +81,7 @@ func (h *DiaryHandler) CreateDiaryEntry(ctx context.Context, req *connect.Reques
 	}
 
 	// Convert persistence model to protobuf message
-	protoEntry := toProtoDiaryEntry(savedEntry) // Use savedEntry (now db.DiaryEntry)
+	protoEntry := ToProtoDiaryEntry(savedEntry) // Use savedEntry (now db.DiaryEntry)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateDiaryEntryResponse{
@@ -141,7 +141,7 @@ func (h *DiaryHandler) UpdateDiaryEntry(ctx context.Context, req *connect.Reques
 	}
 
 	// Convert persistence model to protobuf message
-	protoEntry := toProtoDiaryEntry(updatedEntry) // Use updatedEntry (now db.DiaryEntry)
+	protoEntry := ToProtoDiaryEntry(updatedEntry) // Use updatedEntry (now db.DiaryEntry)
 
 	// Create response
 	res := connect.NewResponse(&v1.UpdateDiaryEntryResponse{
@@ -202,7 +202,7 @@ func (h *DiaryHandler) ListDiaryEntries(ctx context.Context, req *connect.Reques
 	// Convert persistence models to protobuf messages
 	protoEntries := make([]*v1.DiaryEntry, len(entries)) // entries is now []db.DiaryEntry
 	for i, entry := range entries {
-		protoEntries[i] = toProtoDiaryEntry(entry) // Pass db.DiaryEntry
+		protoEntries[i] = ToProtoDiaryEntry(entry) // Pass db.DiaryEntry
 	}
 
 	// Calculate pagination response
@@ -253,7 +253,7 @@ func (h *DiaryHandler) GetDiaryEntry(ctx context.Context, req *connect.Request[v
 	}
 
 	// Convert persistence model to protobuf message
-	protoEntry := toProtoDiaryEntry(entry) // entry is now db.DiaryEntry
+	protoEntry := ToProtoDiaryEntry(entry) // entry is now db.DiaryEntry
 
 	// Create response
 	res := connect.NewResponse(&v1.GetDiaryEntryResponse{
@@ -302,8 +302,8 @@ func (h *DiaryHandler) DeleteDiaryEntry(ctx context.Context, req *connect.Reques
 	return res, nil
 }
 
-// toProtoDiaryEntry converts a db.DiaryEntry (sqlc generated) to a v1.DiaryEntry
-func toProtoDiaryEntry(entry db.DiaryEntry) *v1.DiaryEntry { // Accept db.DiaryEntry
+// ToProtoDiaryEntry converts a db.DiaryEntry (sqlc generated) to a v1.DiaryEntry
+func ToProtoDiaryEntry(entry db.DiaryEntry) *v1.DiaryEntry { // Accept db.DiaryEntry
 	protoEntry := &v1.DiaryEntry{
 		Id:      entry.ID.String(),
 		UserId:  entry.UserID.String(),

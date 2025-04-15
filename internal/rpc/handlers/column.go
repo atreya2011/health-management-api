@@ -74,7 +74,7 @@ func (h *ColumnHandler) ListPublishedColumns(ctx context.Context, req *connect.R
 	// Convert persistence models to protobuf messages
 	protoColumns := make([]*v1.Column, len(columns)) // columns is now []db.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column) // Pass db.Column
+		protoColumns[i] = ToProtoColumn(column) // Pass db.Column
 	}
 
 	// Calculate pagination response
@@ -126,7 +126,7 @@ func (h *ColumnHandler) GetColumn(ctx context.Context, req *connect.Request[v1.G
 	}
 
 	// Convert persistence model to protobuf message
-	protoColumn := toProtoColumn(column) // column is now db.Column
+	protoColumn := ToProtoColumn(column) // column is now db.Column
 
 	// Create response
 	res := connect.NewResponse(&v1.GetColumnResponse{
@@ -180,7 +180,7 @@ func (h *ColumnHandler) ListColumnsByCategory(ctx context.Context, req *connect.
 	// Convert persistence models to protobuf messages
 	protoColumns := make([]*v1.Column, len(columns)) // columns is now []db.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column) // Pass db.Column
+		protoColumns[i] = ToProtoColumn(column) // Pass db.Column
 	}
 
 	// Calculate pagination response
@@ -246,7 +246,7 @@ func (h *ColumnHandler) ListColumnsByTag(ctx context.Context, req *connect.Reque
 	// Convert persistence models to protobuf messages
 	protoColumns := make([]*v1.Column, len(columns)) // columns is now []db.Column
 	for i, column := range columns {
-		protoColumns[i] = toProtoColumn(column) // Pass db.Column
+		protoColumns[i] = ToProtoColumn(column) // Pass db.Column
 	}
 
 	// Calculate pagination response
@@ -268,8 +268,8 @@ func (h *ColumnHandler) ListColumnsByTag(ctx context.Context, req *connect.Reque
 	return res, nil
 }
 
-// toProtoColumn converts a db.Column (sqlc generated) to a v1.Column
-func toProtoColumn(column db.Column) *v1.Column { // Accept db.Column
+// ToProtoColumn converts a db.Column (sqlc generated) to a v1.Column
+func ToProtoColumn(column db.Column) *v1.Column { // Accept db.Column
 	protoColumn := &v1.Column{
 		Id:        column.ID.String(),
 		Title:     column.Title,

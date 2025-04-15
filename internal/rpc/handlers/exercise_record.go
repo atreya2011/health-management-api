@@ -102,7 +102,7 @@ func (h *ExerciseRecordHandler) CreateExerciseRecord(ctx context.Context, req *c
 	}
 
 	// Convert persistence model to protobuf message
-	protoRecord := toProtoExerciseRecord(savedRecord) // Use savedRecord (now db.ExerciseRecord)
+	protoRecord := ToProtoExerciseRecord(savedRecord) // Use savedRecord (now db.ExerciseRecord)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateExerciseRecordResponse{
@@ -163,7 +163,7 @@ func (h *ExerciseRecordHandler) ListExerciseRecords(ctx context.Context, req *co
 	// Convert persistence models to protobuf messages
 	protoRecords := make([]*v1.ExerciseRecord, len(records)) // records is now []db.ExerciseRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoExerciseRecord(record) // Pass db.ExerciseRecord
+		protoRecords[i] = ToProtoExerciseRecord(record) // Pass db.ExerciseRecord
 	}
 
 	// Calculate pagination response
@@ -224,8 +224,8 @@ func (h *ExerciseRecordHandler) DeleteExerciseRecord(ctx context.Context, req *c
 	return res, nil
 }
 
-// toProtoExerciseRecord converts a db.ExerciseRecord (sqlc generated) to a v1.ExerciseRecord
-func toProtoExerciseRecord(record db.ExerciseRecord) *v1.ExerciseRecord { // Accept db.ExerciseRecord
+// ToProtoExerciseRecord converts a db.ExerciseRecord (sqlc generated) to a v1.ExerciseRecord
+func ToProtoExerciseRecord(record db.ExerciseRecord) *v1.ExerciseRecord { // Accept db.ExerciseRecord
 	protoRecord := &v1.ExerciseRecord{
 		Id:           record.ID.String(),
 		UserId:       record.UserID.String(),

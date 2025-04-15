@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/atreya2011/health-management-api/internal/repo"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"github.com/google/uuid"
@@ -13,80 +14,103 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 )
 
-func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID, uuid.UUID, string, string) {
-	t.Helper() // Mark as test helper
+func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (db.Column, db.Column, db.Column, string, string) {
+	t.Helper()
 	now := time.Now()
 	publishedAt := now.Add(-24 * time.Hour)
 	futureDate := now.Add(24 * time.Hour)
 
-	column1ID := uuid.New()
 	category1 := "health"
-	err := testutil.CreateTestColumn(ctx, pool, column1ID, "Test Column 1", "Test content 1",
+	column1, err := testutil.CreateTestColumn(ctx, pool, uuid.New(), "Test Column 1", "Test content 1",
 		pgtype.Text{String: category1, Valid: true},
 		[]string{"diet", "exercise"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
 	require.NoError(t, err, "Failed to create test column 1")
 
-	column2ID := uuid.New()
 	category2 := "nutrition"
-	err = testutil.CreateTestColumn(ctx, pool, column2ID, "Test Column 2", "Test content 2",
+	column2, err := testutil.CreateTestColumn(ctx, pool, uuid.New(), "Test Column 2", "Test content 2",
 		pgtype.Text{String: category2, Valid: true},
 		[]string{"diet", "food"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
 	require.NoError(t, err, "Failed to create test column 2")
 
-	column3ID := uuid.New()
-	err = testutil.CreateTestColumn(ctx, pool, column3ID, "Unpublished Column", "This should not appear",
+	column3, err := testutil.CreateTestColumn(ctx, pool, uuid.New(), "Unpublished Column", "This should not appear",
 		pgtype.Text{String: "health", Valid: true},
 		[]string{"diet"},
 		pgtype.Timestamptz{Time: futureDate, Valid: true})
 	require.NoError(t, err, "Failed to create unpublished column")
 
-	return column1ID, column2ID, column3ID, category1, category2
+	return column1, column2, column3, category1, category2
 }
 
-func TestColumnHandler_ListPublishedColumns(t *testing.T) {
+func TestListPublishedColumns(t *testing.T) {
 	resetDB(t, testPool)
-	repo := testutil.NewColumnRepository(testPool)
+	repo := repo.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
-	setupTestColumns(t, ctx, testPool)
+	col1, col2, _, _, _ := setupTestColumns(t, ctx, testPool)
+
+	protoCol1 := ToProtoColumn(col1)
+	protoCol2 := ToProtoColumn(col2)
 
 	testCases := []struct {
-		name        string
-		req         *v1.ListPublishedColumnsRequest
-		expectLen   int
-		expectTotal int32
-		expectPage  int32
+		name         string
+		req          *v1.ListPublishedColumnsRequest
+		expectError  bool
+		expectedResp *v1.ListPublishedColumnsResponse
 	}{
 		{
 			name: "Default Pagination",
 			req: &v1.ListPublishedColumnsRequest{
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   2, // Only published columns
-			expectTotal: 2,
-			expectPage:  1,
+			expectError: false,
+			expectedResp: &v1.ListPublishedColumnsResponse{
+				Columns: []*v1.Column{protoCol1, protoCol2},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "Pagination - Page 1 Size 1",
 			req: &v1.ListPublishedColumnsRequest{
 				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 1},
 			},
-			expectLen:   1,
-			expectTotal: 2,
-			expectPage:  1,
+			expectError: false,
+			expectedResp: &v1.ListPublishedColumnsResponse{
+				Columns: []*v1.Column{protoCol1},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  2,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "Pagination - Page 2 Size 1",
 			req: &v1.ListPublishedColumnsRequest{
 				Pagination: &v1.PageRequest{PageSize: 1, PageNumber: 2},
 			},
-			expectLen:   1,
-			expectTotal: 2,
-			expectPage:  2,
+			expectError: false,
+			expectedResp: &v1.ListPublishedColumnsResponse{
+				Columns: []*v1.Column{protoCol2},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  2,
+					CurrentPage: 2,
+				},
+			},
 		},
 	}
 
@@ -95,61 +119,66 @@ func TestColumnHandler_ListPublishedColumns(t *testing.T) {
 			req := connect.NewRequest(tc.req)
 			resp, err := handler.ListPublishedColumns(ctx, req)
 
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.NotNil(t, resp.Msg)
-			assert.Len(t, resp.Msg.Columns, tc.expectLen)
-			require.NotNil(t, resp.Msg.Pagination)
-			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
-			assert.Equal(t, tc.expectPage, resp.Msg.Pagination.CurrentPage)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+
+				cmpOpts := []cmp.Option{
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
+					cmpopts.SortSlices(func(a, b *v1.Column) bool {
+						return a.Id < b.Id
+					}),
+					cmpopts.EquateApproxTime(time.Second),
+				}
+
+				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
+					t.Errorf("ListPublishedColumns response mismatch (-want +got):\n%s", diff)
+				}
+			}
 		})
 	}
 }
 
-func TestColumnHandler_GetColumn(t *testing.T) {
+func TestGetColumn(t *testing.T) {
 	resetDB(t, testPool)
-	repo := testutil.NewColumnRepository(testPool)
+	repo := repo.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
-	column1ID, _, column3ID, _, _ := setupTestColumns(t, ctx, testPool)
+	col1, _, col3, _, _ := setupTestColumns(t, ctx, testPool)
 	nonExistentID := uuid.New()
 
+	protoCol1 := ToProtoColumn(col1)
+
 	testCases := []struct {
-		name        string
-		req         *v1.GetColumnRequest
-		expectError bool
-		verify      func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error)
+		name         string
+		req          *v1.GetColumnRequest
+		expectError  bool
+		expectedResp *v1.GetColumnResponse
 	}{
 		{
-			name: "Success - Get Published Column",
-			req:  &v1.GetColumnRequest{Id: column1ID.String()},
+			name:        "Success - Get Published Column",
+			req:         &v1.GetColumnRequest{Id: col1.ID.String()},
 			expectError: false,
-			verify: func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error) {
-				require.NoError(t, err)
-				require.NotNil(t, resp)
-				require.NotNil(t, resp.Msg)
-				require.NotNil(t, resp.Msg.Column)
-				assert.Equal(t, column1ID.String(), resp.Msg.Column.Id)
-				assert.Equal(t, "Test Column 1", resp.Msg.Column.Title)
+			expectedResp: &v1.GetColumnResponse{
+				Column: protoCol1,
 			},
 		},
 		{
-			name: "Error - Get Unpublished Column",
-			req:  &v1.GetColumnRequest{Id: column3ID.String()},
-			expectError: true,
-			verify: func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error) {
-				require.Error(t, err) // Expecting a 'not found' or similar error
-				assert.Nil(t, resp)
-			},
+			name:         "Error - Get Unpublished Column",
+			req:          &v1.GetColumnRequest{Id: col3.ID.String()},
+			expectError:  true,
+			expectedResp: nil,
 		},
 		{
-			name: "Error - Get Non-existent Column",
-			req:  &v1.GetColumnRequest{Id: nonExistentID.String()},
-			expectError: true,
-			verify: func(t *testing.T, resp *connect.Response[v1.GetColumnResponse], err error) {
-				require.Error(t, err) // Expecting a 'not found' or similar error
-				assert.Nil(t, resp)
-			},
+			name:         "Error - Get Non-existent Column",
+			req:          &v1.GetColumnRequest{Id: nonExistentID.String()},
+			expectError:  true,
+			expectedResp: nil,
 		},
 	}
 
@@ -157,24 +186,44 @@ func TestColumnHandler_GetColumn(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := connect.NewRequest(tc.req)
 			resp, err := handler.GetColumn(ctx, req)
-			tc.verify(t, resp, err)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+
+				cmpOpts := []cmp.Option{
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
+					cmpopts.EquateApproxTime(time.Second),
+				}
+
+				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
+					t.Errorf("GetColumn response mismatch (-want +got):\n%s", diff)
+				}
+			}
 		})
 	}
 }
 
-func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
+func TestListColumnsByCategory(t *testing.T) {
 	resetDB(t, testPool)
-	repo := testutil.NewColumnRepository(testPool)
+	repo := repo.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
-	_, _, _, category1, category2 := setupTestColumns(t, ctx, testPool)
+	col1, col2, _, category1, category2 := setupTestColumns(t, ctx, testPool)
+
+	protoCol1 := ToProtoColumn(col1)
+	protoCol2 := ToProtoColumn(col2)
 
 	testCases := []struct {
-		name        string
-		req         *v1.ListColumnsByCategoryRequest
-		expectLen   int
-		expectTotal int32
-		expectCat   string
+		name         string
+		req          *v1.ListColumnsByCategoryRequest
+		expectError  bool
+		expectedResp *v1.ListColumnsByCategoryResponse
 	}{
 		{
 			name: "List by Category 1",
@@ -182,9 +231,15 @@ func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
 				Category:   category1,
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   1,
-			expectTotal: 1,
-			expectCat:   category1,
+			expectError: false,
+			expectedResp: &v1.ListColumnsByCategoryResponse{
+				Columns: []*v1.Column{protoCol1},
+				Pagination: &v1.PageResponse{
+					TotalItems:  1,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "List by Category 2",
@@ -192,9 +247,15 @@ func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
 				Category:   category2,
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   1,
-			expectTotal: 1,
-			expectCat:   category2,
+			expectError: false,
+			expectedResp: &v1.ListColumnsByCategoryResponse{
+				Columns: []*v1.Column{protoCol2},
+				Pagination: &v1.PageResponse{
+					TotalItems:  1,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "List by Non-existent Category",
@@ -202,9 +263,15 @@ func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
 				Category:   "nonexistent",
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   0,
-			expectTotal: 0,
-			expectCat:   "", // Not applicable
+			expectError: false,
+			expectedResp: &v1.ListColumnsByCategoryResponse{
+				Columns: []*v1.Column{},
+				Pagination: &v1.PageResponse{
+					TotalItems:  0,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 	}
 
@@ -213,32 +280,46 @@ func TestColumnHandler_ListColumnsByCategory(t *testing.T) {
 			req := connect.NewRequest(tc.req)
 			resp, err := handler.ListColumnsByCategory(ctx, req)
 
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.NotNil(t, resp.Msg)
-			assert.Len(t, resp.Msg.Columns, tc.expectLen)
-			require.NotNil(t, resp.Msg.Pagination)
-			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
-			if tc.expectLen > 0 {
-				require.NotNil(t, resp.Msg.Columns[0].Category)
-				assert.Equal(t, tc.expectCat, resp.Msg.Columns[0].Category.Value)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+
+				cmpOpts := []cmp.Option{
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
+					cmpopts.SortSlices(func(a, b *v1.Column) bool {
+						return a.Id < b.Id
+					}),
+					cmpopts.EquateApproxTime(time.Second),
+				}
+
+				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
+					t.Errorf("ListColumnsByCategory response mismatch (-want +got):\n%s", diff)
+				}
 			}
 		})
 	}
 }
 
-func TestColumnHandler_ListColumnsByTag(t *testing.T) {
+func TestListColumnsByTag(t *testing.T) {
 	resetDB(t, testPool)
-	repo := testutil.NewColumnRepository(testPool)
+	repo := repo.NewColumnRepository(testPool)
 	handler := NewColumnHandler(repo, testLogger)
 	ctx := context.Background()
-	setupTestColumns(t, ctx, testPool)
+	col1, col2, _, _, _ := setupTestColumns(t, ctx, testPool)
+
+	protoCol1 := ToProtoColumn(col1)
+	protoCol2 := ToProtoColumn(col2)
 
 	testCases := []struct {
-		name        string
-		req         *v1.ListColumnsByTagRequest
-		expectLen   int
-		expectTotal int32
+		name         string
+		req          *v1.ListColumnsByTagRequest
+		expectError  bool
+		expectedResp *v1.ListColumnsByTagResponse
 	}{
 		{
 			name: "List by Tag 'diet'",
@@ -246,8 +327,15 @@ func TestColumnHandler_ListColumnsByTag(t *testing.T) {
 				Tag:        "diet",
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   2, // Both published columns have 'diet'
-			expectTotal: 2,
+			expectError: false,
+			expectedResp: &v1.ListColumnsByTagResponse{
+				Columns: []*v1.Column{protoCol1, protoCol2},
+				Pagination: &v1.PageResponse{
+					TotalItems:  2,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "List by Tag 'exercise'",
@@ -255,8 +343,15 @@ func TestColumnHandler_ListColumnsByTag(t *testing.T) {
 				Tag:        "exercise",
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   1,
-			expectTotal: 1,
+			expectError: false,
+			expectedResp: &v1.ListColumnsByTagResponse{
+				Columns: []*v1.Column{protoCol1},
+				Pagination: &v1.PageResponse{
+					TotalItems:  1,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "List by Tag 'food'",
@@ -264,8 +359,15 @@ func TestColumnHandler_ListColumnsByTag(t *testing.T) {
 				Tag:        "food",
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   1,
-			expectTotal: 1,
+			expectError: false,
+			expectedResp: &v1.ListColumnsByTagResponse{
+				Columns: []*v1.Column{protoCol2},
+				Pagination: &v1.PageResponse{
+					TotalItems:  1,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 		{
 			name: "List by Non-existent Tag",
@@ -273,8 +375,15 @@ func TestColumnHandler_ListColumnsByTag(t *testing.T) {
 				Tag:        "nonexistent",
 				Pagination: &v1.PageRequest{PageSize: 10, PageNumber: 1},
 			},
-			expectLen:   0,
-			expectTotal: 0,
+			expectError: false,
+			expectedResp: &v1.ListColumnsByTagResponse{
+				Columns: []*v1.Column{},
+				Pagination: &v1.PageResponse{
+					TotalItems:  0,
+					TotalPages:  1,
+					CurrentPage: 1,
+				},
+			},
 		},
 	}
 
@@ -283,12 +392,27 @@ func TestColumnHandler_ListColumnsByTag(t *testing.T) {
 			req := connect.NewRequest(tc.req)
 			resp, err := handler.ListColumnsByTag(ctx, req)
 
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.NotNil(t, resp.Msg)
-			assert.Len(t, resp.Msg.Columns, tc.expectLen)
-			require.NotNil(t, resp.Msg.Pagination)
-			assert.Equal(t, tc.expectTotal, resp.Msg.Pagination.TotalItems)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Msg)
+
+				cmpOpts := []cmp.Option{
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
+					cmpopts.SortSlices(func(a, b *v1.Column) bool {
+						return a.Id < b.Id
+					}),
+					cmpopts.EquateApproxTime(time.Second),
+				}
+
+				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
+					t.Errorf("ListColumnsByTag response mismatch (-want +got):\n%s", diff)
+				}
+			}
 		})
 	}
 }

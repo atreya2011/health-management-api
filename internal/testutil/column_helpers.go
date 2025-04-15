@@ -5,32 +5,25 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/repo"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// NewColumnRepository creates a new column repository for testing
-func NewColumnRepository(pool *pgxpool.Pool) *repo.ColumnRepository { // Return concrete type
-	return repo.NewColumnRepository(pool)
-}
-
-// CreateTestColumn creates a test column in the database using the provided pool
+// CreateTestColumn creates a test column in the database using the provided pool and returns the created record.
 func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, title, content string,
-	category pgtype.Text, tags []string, publishedAt pgtype.Timestamptz) error { // Use pgtype
+	category pgtype.Text, tags []string, publishedAt pgtype.Timestamptz) (db.Column, error) { // Return db.Column and error
 
 	// Create the column in the database
-	query := `
+	insertQuery := `
 		INSERT INTO columns (id, title, content, category, tags, published_at, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	// TIMESTAMPTZ columns usually map directly to time.Time with pgx/v5
-	// Ensure times are UTC before insertion
 	nowUTC := time.Now().UTC()
-	publishedAtVal := publishedAt // Use the passed pgtype.Timestamptz directly
+	publishedAtVal := publishedAt
 
-	_, err := pool.Exec(ctx, query,
+	_, err := pool.Exec(ctx, insertQuery,
 		id,
 		title,
 		content,
@@ -42,17 +35,39 @@ func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, tit
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not create test column: %w", err)
+		return db.Column{}, fmt.Errorf("could not insert test column: %w", err)
 	}
 
-	return nil
+	// Fetch the created column to return it
+	selectQuery := `
+		SELECT id, title, content, category, tags, published_at, created_at, updated_at
+		FROM columns
+		WHERE id = $1
+	`
+	row := pool.QueryRow(ctx, selectQuery, id)
+	var createdColumn db.Column
+	err = row.Scan(
+		&createdColumn.ID,
+		&createdColumn.Title,
+		&createdColumn.Content,
+		&createdColumn.Category,
+		&createdColumn.Tags,
+		&createdColumn.PublishedAt,
+		&createdColumn.CreatedAt,
+		&createdColumn.UpdatedAt,
+	)
+	if err != nil {
+		return db.Column{}, fmt.Errorf("could not fetch created test column: %w", err)
+	}
+
+	return createdColumn, nil
 }
 
 // SeedMockColumns deletes existing columns and inserts a predefined set of mock columns.
 // This is useful for setting up a consistent state for tests or seeding development environments.
 func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 	// Delete existing columns to avoid conflicts and ensure a clean state
-	_, err := pool.Exec(ctx, "DELETE FROM columns")
+	_, err := pool.Exec(ctx, "TRUNCATE TABLE columns RESTART IDENTITY CASCADE") // Use TRUNCATE for efficiency
 	if err != nil {
 		return fmt.Errorf("failed to delete existing columns: %w", err)
 	}
@@ -106,7 +121,7 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 		categoryVal := pgtype.Text{String: data.Category, Valid: data.Category != ""}
 		publishedAtVal := pgtype.Timestamptz{Time: data.PublishedAt.UTC(), Valid: !data.PublishedAt.IsZero()} // Ensure UTC
 
-		err := CreateTestColumn(ctx, pool, data.ID, data.Title, data.Content, categoryVal, data.Tags, publishedAtVal)
+		_, err := CreateTestColumn(ctx, pool, data.ID, data.Title, data.Content, categoryVal, data.Tags, publishedAtVal) // Capture error only
 		if err != nil {
 			// Log or handle the error for the specific column creation failure
 			fmt.Printf("Warning: Failed to create mock column '%s' using CreateTestColumn: %v\n", data.Title, err)

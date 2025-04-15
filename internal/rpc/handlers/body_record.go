@@ -91,7 +91,7 @@ func (h *BodyRecordHandler) CreateBodyRecord(ctx context.Context, req *connect.R
 	}
 
 	// Convert persistence model to protobuf message
-	protoRecord := toProtoBodyRecord(savedRecord) // Use savedRecord (now db.BodyRecord)
+	protoRecord := ToProtoBodyRecord(savedRecord) // Use savedRecord (now db.BodyRecord)
 
 	// Create response
 	res := connect.NewResponse(&v1.CreateBodyRecordResponse{
@@ -152,7 +152,7 @@ func (h *BodyRecordHandler) ListBodyRecords(ctx context.Context, req *connect.Re
 	// Convert persistence models to protobuf messages
 	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []db.BodyRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoBodyRecord(record) // Pass db.BodyRecord
+		protoRecords[i] = ToProtoBodyRecord(record) // Pass db.BodyRecord
 	}
 
 	// Calculate pagination response
@@ -207,7 +207,7 @@ func (h *BodyRecordHandler) GetBodyRecordsByDateRange(ctx context.Context, req *
 	// Convert persistence models to protobuf messages
 	protoRecords := make([]*v1.BodyRecord, len(records)) // records is now []db.BodyRecord
 	for i, record := range records {
-		protoRecords[i] = toProtoBodyRecord(record) // Pass db.BodyRecord
+		protoRecords[i] = ToProtoBodyRecord(record) // Pass db.BodyRecord
 	}
 
 	// Create response
@@ -219,7 +219,7 @@ func (h *BodyRecordHandler) GetBodyRecordsByDateRange(ctx context.Context, req *
 }
 
 // toProtoBodyRecord converts a db.BodyRecord (sqlc generated) to a v1.BodyRecord
-func toProtoBodyRecord(record db.BodyRecord) *v1.BodyRecord { // Accept db.BodyRecord
+func ToProtoBodyRecord(record db.BodyRecord) *v1.BodyRecord { // Accept db.BodyRecord
 	protoRecord := &v1.BodyRecord{
 		Id:     record.ID.String(),
 		UserId: record.UserID.String(),

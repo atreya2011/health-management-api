@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/repo"
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // CreateTestBodyRecord creates a test body record in the database using sqlc
@@ -49,9 +47,4 @@ func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.
 
 	// Return the generated struct directly
 	return dbRecord, nil
-}
-
-// NewBodyRecordRepository creates a new body record repository for testing
-func NewBodyRecordRepository(pool *pgxpool.Pool) *repo.BodyRecordRepository { // Return concrete type
-	return repo.NewBodyRecordRepository(pool)
 }

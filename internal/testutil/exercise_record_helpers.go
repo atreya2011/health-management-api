@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/repo"
-	db "github.com/atreya2011/health-management-api/internal/repo/gen"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen" // Import proto types
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // CreateTestExerciseRecord creates a test exercise record in the database using sqlc
@@ -43,9 +41,4 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 
 	// Return the generated struct directly
 	return dbRecord, nil
-}
-
-// NewExerciseRecordRepository creates a new exercise record repository for testing
-func NewExerciseRecordRepository(pool *pgxpool.Pool) *repo.ExerciseRecordRepository { // Return concrete type
-	return repo.NewExerciseRecordRepository(pool)
 }
