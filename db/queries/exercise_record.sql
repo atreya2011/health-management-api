@@ -1,6 +1,6 @@
 -- name: CreateExerciseRecord :one
-INSERT INTO exercise_records (user_id, exercise_name, duration_minutes, calories_burned, recorded_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO exercise_records (user_id, exercise_name, duration_minutes, calories_burned, recorded_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: ListExerciseRecordsByUser :many

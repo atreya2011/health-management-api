@@ -24,7 +24,8 @@ func NewBodyRecordRepository(pool *pgxpool.Pool) *BodyRecordRepository { // Retu
 }
 
 // Save creates a new body record or updates an existing one based on UserID and Date
-func (r *BodyRecordRepository) Save(ctx context.Context, userID uuid.UUID, date time.Time, weightKg *float64, bodyFatPercentage *float64) (db.BodyRecord, error) {
+// Accepts the current time to set created_at and updated_at.
+func (r *BodyRecordRepository) Save(ctx context.Context, userID uuid.UUID, date time.Time, weightKg *float64, bodyFatPercentage *float64, now time.Time) (db.BodyRecord, error) {
 	var weightVal, bodyFatVal pgtype.Numeric
 
 	// Convert *float64 to pgtype.Numeric by scanning from string
@@ -53,6 +54,8 @@ func (r *BodyRecordRepository) Save(ctx context.Context, userID uuid.UUID, date 
 		Date:              pgDate,
 		WeightKg:          weightVal,
 		BodyFatPercentage: bodyFatVal,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	dbRecord, err := r.q.CreateBodyRecord(ctx, params)

@@ -12,7 +12,8 @@ import (
 
 // CreateTestBodyRecord creates a test body record in the database using sqlc
 // Takes Queries directly and returns the generated db.BodyRecord.
-func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, date time.Time, weight *float64, bodyFat *float64) (db.BodyRecord, error) { // Return db.BodyRecord
+// Accepts the current time for timestamps.
+func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, date time.Time, weight *float64, bodyFat *float64, now time.Time) (db.BodyRecord, error) {
 	var weightVal, bodyFatVal pgtype.Numeric // Use pgtype.Numeric
 
 	if weight != nil {
@@ -38,6 +39,8 @@ func CreateTestBodyRecord(ctx context.Context, queries *db.Queries, userID uuid.
 		Date:              pgDate,
 		WeightKg:          weightVal,
 		BodyFatPercentage: bodyFatVal,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	dbRecord, err := queries.CreateBodyRecord(ctx, params)

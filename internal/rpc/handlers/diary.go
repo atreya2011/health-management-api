@@ -11,6 +11,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/atreya2011/health-management-api/internal/auth"
+	"github.com/atreya2011/health-management-api/internal/clock"
 	"github.com/atreya2011/health-management-api/internal/repo"
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
@@ -21,15 +22,17 @@ import (
 
 // DiaryHandler implements the diary service RPCs
 type DiaryHandler struct {
-	repo *repo.DiaryEntryRepository // Use concrete repository type
-	log  *slog.Logger
+	repo  *repo.DiaryEntryRepository // Use concrete repository type
+	log   *slog.Logger
+	clock clock.Clock
 }
 
 // NewDiaryHandler creates a new diary handler
-func NewDiaryHandler(repo *repo.DiaryEntryRepository, log *slog.Logger) *DiaryHandler { // Use concrete repository type
+func NewDiaryHandler(repo *repo.DiaryEntryRepository, log *slog.Logger, clock clock.Clock) *DiaryHandler {
 	return &DiaryHandler{
-		repo: repo,
-		log:  log,
+		repo:  repo,
+		log:   log,
+		clock: clock,
 	}
 }
 
@@ -67,14 +70,15 @@ func (h *DiaryHandler) CreateDiaryEntry(ctx context.Context, req *connect.Reques
 	if title != nil && len(*title) > 200 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("title exceeds maximum allowed length (200 characters)"))
 	}
-	if entryDate.After(time.Now()) {
+	if entryDate.After(h.clock.Now()) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("entry date cannot be in the future"))
 	}
 	// Removed instantiation of repo.DiaryEntry
 
-	// Call repository directly with new signature
-	h.log.InfoContext(ctx, "Creating diary entry", "userID", userID, "entryDate", entryDate)
-	savedEntry, err := h.repo.Create(ctx, userID, title, content, entryDate) // Use new signature
+	// Call repository directly with new signature, passing current time from clock
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Creating diary entry", "userID", userID, "entryDate", entryDate, "now", now)
+	savedEntry, err := h.repo.Create(ctx, userID, title, content, entryDate, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to create diary entry", "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create diary entry"))
@@ -129,8 +133,9 @@ func (h *DiaryHandler) UpdateDiaryEntry(ctx context.Context, req *connect.Reques
 	// Call repository directly with new signature
 	// Note: FindByID is implicitly called within the Update query in the repository now,
 	// ensuring the user owns the entry. We don't need to fetch it separately first.
-	h.log.InfoContext(ctx, "Updating diary entry", "entryID", entryID, "userID", userID)
-	updatedEntry, err := h.repo.Update(ctx, entryID, userID, title, content) // Use new signature
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Updating diary entry", "entryID", entryID, "userID", userID, "now", now)
+	updatedEntry, err := h.repo.Update(ctx, entryID, userID, title, content, now)
 	if err != nil {
 		if errors.Is(err, repo.ErrDiaryEntryNotFound) { // Check if repo returned not found
 			h.log.WarnContext(ctx, "Diary entry not found during update", "entryID", entryID, "userID", userID)

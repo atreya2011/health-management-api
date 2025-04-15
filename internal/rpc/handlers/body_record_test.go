@@ -10,7 +10,6 @@ import (
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
 	"github.com/atreya2011/health-management-api/internal/testutil"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -19,8 +18,13 @@ import (
 )
 
 func TestCreateBodyRecord(t *testing.T) {
-	date := time.Now().UTC().Truncate(24 * time.Hour)
+	// Set a fixed time for the test
+	fixedTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime) // Use the global mockClock from main_test.go
+
+	date := mockClock.Now().UTC().Truncate(24 * time.Hour) // Use mockClock
 	dateStr := date.Format("2006-01-02")
+	fixedTimestampPb := timestamppb.New(fixedTime)
 
 	testCases := []struct {
 		name         string
@@ -37,11 +41,11 @@ func TestCreateBodyRecord(t *testing.T) {
 			expectError: false,
 			expectedResp: &v1.CreateBodyRecordResponse{
 				BodyRecord: &v1.BodyRecord{
-					UserId:     testUserID.String(),
-					Date:       dateStr,
-					WeightKg:   &wrapperspb.DoubleValue{Value: 75.5},
-					CreatedAt:  timestamppb.Now(),
-					UpdatedAt:  timestamppb.Now(),
+					UserId:    testUserID.String(),
+					Date:      dateStr,
+					WeightKg:  &wrapperspb.DoubleValue{Value: 75.5},
+					CreatedAt: fixedTimestampPb, // Use fixed time
+					UpdatedAt: fixedTimestampPb, // Use fixed time
 				},
 			},
 		},
@@ -63,11 +67,11 @@ func TestCreateBodyRecord(t *testing.T) {
 			expectError: false,
 			expectedResp: &v1.CreateBodyRecordResponse{
 				BodyRecord: &v1.BodyRecord{
-					UserId:     testUserID.String(),
-					Date:       dateStr,
-					WeightKg:   &wrapperspb.DoubleValue{Value: 76.0},
-					CreatedAt:  timestamppb.Now(),
-					UpdatedAt:  timestamppb.Now(),
+					UserId:    testUserID.String(),
+					Date:      dateStr,
+					WeightKg:  &wrapperspb.DoubleValue{Value: 76.0},
+					CreatedAt: fixedTimestampPb, // Use fixed time
+					UpdatedAt: fixedTimestampPb, // Use fixed time
 				},
 			},
 		},
@@ -85,8 +89,8 @@ func TestCreateBodyRecord(t *testing.T) {
 					Date:              dateStr,
 					WeightKg:          &wrapperspb.DoubleValue{Value: 75.0},
 					BodyFatPercentage: &wrapperspb.DoubleValue{Value: 15.5},
-					CreatedAt:         timestamppb.Now(),
-					UpdatedAt:         timestamppb.Now(),
+					CreatedAt:         fixedTimestampPb, // Use fixed time
+					UpdatedAt:         fixedTimestampPb, // Use fixed time
 				},
 			},
 		},
@@ -95,8 +99,8 @@ func TestCreateBodyRecord(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := repo.NewBodyRecordRepository(testPool)
-			handler := NewBodyRecordHandler(repo, testLogger)
+			bodyRecordRepo := repo.NewBodyRecordRepository(testPool)
+			handler := NewBodyRecordHandler(bodyRecordRepo, testLogger, mockClock) // Pass mockClock
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 
@@ -115,8 +119,8 @@ func TestCreateBodyRecord(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.BodyRecord{}, "id", "created_at", "updated_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					protocmp.IgnoreFields(&v1.BodyRecord{}, "id"), // Only ignore ID now
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -129,20 +133,22 @@ func TestCreateBodyRecord(t *testing.T) {
 
 func TestListBodyRecords(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewBodyRecordRepository(testPool)
-	handler := NewBodyRecordHandler(repo, testLogger)
+	bodyRecordRepo := repo.NewBodyRecordRepository(testPool)
+	handler := NewBodyRecordHandler(bodyRecordRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
 	testCtx := newTestContext(ctx)
 
-	// Setup: Create test records
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Setup: Create test records using mock clock
+	mockClock.SetTime(time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)) // Set time for setup
+	today := mockClock.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
 	weight1 := 75.5
 	weight2 := 76.0
 	bodyFat := 15.5
-	record1, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, today, &weight1, nil)
+	now := mockClock.Now()                                                                                 // Get current mock time
+	record1, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, today, &weight1, nil, now) // Pass now
 	require.NoError(t, err, "Failed to create test body record 1")
-	record2, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, yesterday, &weight2, &bodyFat)
+	record2, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, yesterday, &weight2, &bodyFat, now) // Pass now
 	require.NoError(t, err, "Failed to create test body record 2")
 
 	protoRecord1 := ToProtoBodyRecord(record1)
@@ -263,22 +269,24 @@ func TestListBodyRecords(t *testing.T) {
 
 func TestGetBodyRecordsByDateRange(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewBodyRecordRepository(testPool)
-	handler := NewBodyRecordHandler(repo, testLogger)
+	bodyRecordRepo := repo.NewBodyRecordRepository(testPool)
+	handler := NewBodyRecordHandler(bodyRecordRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
 	testCtx := newTestContext(ctx)
 
-	// Setup: Create test records
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Setup: Create test records using mock clock
+	mockClock.SetTime(time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)) // Set time for setup
+	today := mockClock.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
 	lastWeek := today.Add(-7 * 24 * time.Hour)
 	weight1, weight2, weight3 := 75.5, 76.0, 77.0
 	bodyFat := 15.5
-	recordToday, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, today, &weight1, nil)
+	now := mockClock.Now()                                                                                     // Get current mock time
+	recordToday, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, today, &weight1, nil, now) // Pass now
 	require.NoError(t, err)
-	recordYesterday, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, yesterday, &weight2, &bodyFat)
+	recordYesterday, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, yesterday, &weight2, &bodyFat, now) // Pass now
 	require.NoError(t, err)
-	recordLastWeek, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, lastWeek, &weight3, nil)
+	recordLastWeek, err := testutil.CreateTestBodyRecord(ctx, testQueries, testUserID, lastWeek, &weight3, nil, now) // Pass now
 	require.NoError(t, err)
 
 	// Convert to proto

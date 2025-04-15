@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
@@ -27,11 +28,12 @@ func NewColumnRepository(pool *pgxpool.Pool) *ColumnRepository { // Return expor
 	}
 }
 
-// FindPublished retrieves paginated published columns
-func (r *ColumnRepository) FindPublished(ctx context.Context, limit, offset int) ([]db.Column, error) {
+// FindPublished retrieves paginated published columns, accepting the current time.
+func (r *ColumnRepository) FindPublished(ctx context.Context, limit, offset int, now time.Time) ([]db.Column, error) {
 	params := db.ListPublishedColumnsParams{
-		Limit:  int32(limit),
-		Offset: int32(offset),
+		PublishedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		Limit:       int32(limit),
+		Offset:      int32(offset),
 	}
 
 	dbColumns, err := r.q.ListPublishedColumns(ctx, params)
@@ -43,9 +45,13 @@ func (r *ColumnRepository) FindPublished(ctx context.Context, limit, offset int)
 	return dbColumns, nil
 }
 
-// FindByID retrieves a column by ID
-func (r *ColumnRepository) FindByID(ctx context.Context, id uuid.UUID) (db.Column, error) {
-	dbColumn, err := r.q.GetColumnByID(ctx, id)
+// FindByID retrieves a column by ID, checking if it's published based on the current time.
+func (r *ColumnRepository) FindByID(ctx context.Context, id uuid.UUID, now time.Time) (db.Column, error) {
+	params := db.GetColumnByIDParams{
+		ID:          id,
+		PublishedAt: pgtype.Timestamptz{Time: now, Valid: true},
+	}
+	dbColumn, err := r.q.GetColumnByID(ctx, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return db.Column{}, ErrColumnNotFound // Return zero value and local error
@@ -57,12 +63,13 @@ func (r *ColumnRepository) FindByID(ctx context.Context, id uuid.UUID) (db.Colum
 	return dbColumn, nil
 }
 
-// FindByCategory retrieves paginated columns by category
-func (r *ColumnRepository) FindByCategory(ctx context.Context, category string, limit, offset int) ([]db.Column, error) {
+// FindByCategory retrieves paginated columns by category, accepting the current time.
+func (r *ColumnRepository) FindByCategory(ctx context.Context, category string, limit, offset int, now time.Time) ([]db.Column, error) {
 	params := db.ListColumnsByCategoryParams{
-		Category: pgtype.Text{String: category, Valid: true},
-		Limit:    int32(limit),
-		Offset:   int32(offset),
+		Category:    pgtype.Text{String: category, Valid: true},
+		PublishedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		Limit:       int32(limit),
+		Offset:      int32(offset),
 	}
 
 	dbColumns, err := r.q.ListColumnsByCategory(ctx, params)
@@ -74,12 +81,13 @@ func (r *ColumnRepository) FindByCategory(ctx context.Context, category string, 
 	return dbColumns, nil
 }
 
-// FindByTag retrieves paginated columns by tag
-func (r *ColumnRepository) FindByTag(ctx context.Context, tag string, limit, offset int) ([]db.Column, error) {
+// FindByTag retrieves paginated columns by tag, accepting the current time.
+func (r *ColumnRepository) FindByTag(ctx context.Context, tag string, limit, offset int, now time.Time) ([]db.Column, error) {
 	params := db.ListColumnsByTagParams{
-		Column1: tag,
-		Limit:   int32(limit),
-		Offset:  int32(offset),
+		Column1:     tag,
+		PublishedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		Limit:       int32(limit),
+		Offset:      int32(offset),
 	}
 	dbColumns, err := r.q.ListColumnsByTag(ctx, params)
 	if err != nil {
@@ -90,9 +98,9 @@ func (r *ColumnRepository) FindByTag(ctx context.Context, tag string, limit, off
 	return dbColumns, nil
 }
 
-// CountPublished returns the total number of published columns
-func (r *ColumnRepository) CountPublished(ctx context.Context) (int64, error) {
-	count, err := r.q.CountPublishedColumns(ctx)
+// CountPublished returns the total number of published columns, accepting the current time.
+func (r *ColumnRepository) CountPublished(ctx context.Context, now time.Time) (int64, error) {
+	count, err := r.q.CountPublishedColumns(ctx, pgtype.Timestamptz{Time: now, Valid: true})
 	if err != nil {
 		return 0, fmt.Errorf("failed to count published columns: %w", err)
 	}
@@ -100,9 +108,13 @@ func (r *ColumnRepository) CountPublished(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-// CountByCategory returns the total number of published columns in a category
-func (r *ColumnRepository) CountByCategory(ctx context.Context, category string) (int64, error) {
-	count, err := r.q.CountColumnsByCategory(ctx, pgtype.Text{String: category, Valid: true})
+// CountByCategory returns the total number of published columns in a category, accepting the current time.
+func (r *ColumnRepository) CountByCategory(ctx context.Context, category string, now time.Time) (int64, error) {
+	params := db.CountColumnsByCategoryParams{
+		Category:    pgtype.Text{String: category, Valid: true},
+		PublishedAt: pgtype.Timestamptz{Time: now, Valid: true},
+	}
+	count, err := r.q.CountColumnsByCategory(ctx, params)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count columns by category: %w", err) // Use fmt.Errorf
 	}
@@ -110,9 +122,13 @@ func (r *ColumnRepository) CountByCategory(ctx context.Context, category string)
 	return count, nil
 }
 
-// CountByTag returns the total number of published columns with a tag
-func (r *ColumnRepository) CountByTag(ctx context.Context, tag string) (int64, error) {
-	count, err := r.q.CountColumnsByTag(ctx, tag)
+// CountByTag returns the total number of published columns with a tag, accepting the current time.
+func (r *ColumnRepository) CountByTag(ctx context.Context, tag string, now time.Time) (int64, error) {
+	params := db.CountColumnsByTagParams{
+		Column1:     tag,
+		PublishedAt: pgtype.Timestamptz{Time: now, Valid: true},
+	}
+	count, err := r.q.CountColumnsByTag(ctx, params)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count columns by tag: %w", err) // Use fmt.Errorf
 	}

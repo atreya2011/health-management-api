@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/atreya2011/health-management-api/internal/auth"
+	"github.com/atreya2011/health-management-api/internal/clock"
 	"github.com/atreya2011/health-management-api/internal/repo"
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
@@ -19,15 +20,17 @@ import (
 
 // ExerciseRecordHandler implements the exercise record service RPCs
 type ExerciseRecordHandler struct {
-	repo *repo.ExerciseRecordRepository // Use concrete repository type
-	log  *slog.Logger
+	repo  *repo.ExerciseRecordRepository // Use concrete repository type
+	log   *slog.Logger
+	clock clock.Clock
 }
 
 // NewExerciseRecordHandler creates a new exercise record handler
-func NewExerciseRecordHandler(repo *repo.ExerciseRecordRepository, log *slog.Logger) *ExerciseRecordHandler { // Use concrete repository type
+func NewExerciseRecordHandler(repo *repo.ExerciseRecordRepository, log *slog.Logger, clock clock.Clock) *ExerciseRecordHandler {
 	return &ExerciseRecordHandler{
-		repo: repo,
-		log:  log,
+		repo:  repo,
+		log:   log,
+		clock: clock,
 	}
 }
 
@@ -45,7 +48,7 @@ func (h *ExerciseRecordHandler) CreateExerciseRecord(ctx context.Context, req *c
 	if req.Msg.RecordedAt != nil {
 		recordedAt = req.Msg.RecordedAt.AsTime()
 	} else {
-		recordedAt = time.Now()
+		recordedAt = h.clock.Now()
 	}
 
 	// Convert protobuf wrappers to Go pointers
@@ -88,14 +91,15 @@ func (h *ExerciseRecordHandler) CreateExerciseRecord(ctx context.Context, req *c
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("calories burned exceeds maximum allowed value"))
 		}
 	}
-	if recordedAt.After(time.Now()) {
+	if recordedAt.After(h.clock.Now()) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("recorded date cannot be in the future"))
 	}
 	// Removed instantiation of repo.ExerciseRecord
 
-	// Call repository directly with new signature
-	h.log.InfoContext(ctx, "Creating exercise record", "userID", userID, "exerciseName", exerciseName)
-	savedRecord, err := h.repo.Create(ctx, userID, exerciseName, durationMinutes, caloriesBurned, recordedAt) // Use new signature
+	// Call repository directly with new signature, passing current time from clock
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Creating exercise record", "userID", userID, "exerciseName", exerciseName, "now", now)
+	savedRecord, err := h.repo.Create(ctx, userID, exerciseName, durationMinutes, caloriesBurned, recordedAt, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to create exercise record", "userID", userID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create exercise record"))

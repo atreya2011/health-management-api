@@ -12,7 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/auth" // Added for UserContextKey
+	"github.com/atreya2011/health-management-api/internal/auth"  // Added for UserContextKey
+	"github.com/atreya2011/health-management-api/internal/clock" // Added clock import
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/atreya2011/health-management-api/internal/testutil" // Keep for CreateTestUser
 	"github.com/google/uuid"
@@ -27,6 +28,7 @@ var (
 	testPool    *pgxpool.Pool
 	testLogger  *slog.Logger
 	testUserID  uuid.UUID
+	mockClock   *clock.MockClock
 
 	// Keep track of these for teardown
 	dockerPool *dockertest.Pool
@@ -111,6 +113,7 @@ func findMigrationFiles() ([]string, error) {
 
 func TestMain(m *testing.M) {
 	testLogger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})) // More verbose logging for setup
+	mockClock = clock.NewDefaultMockClock()                                                             // Initialize mock clock
 	testLogger.Info("Setting up test database for handlers package...")
 
 	var err error

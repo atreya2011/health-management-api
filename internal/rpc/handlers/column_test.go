@@ -19,30 +19,35 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/atreya2011/health-management-api/internal/clock" // Added clock import
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 )
 
-func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (db.Column, db.Column, db.Column, string, string) {
+// setupTestColumns Accepts a clock.Clock
+func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool, clk clock.Clock) (db.Column, db.Column, db.Column, string, string) {
 	t.Helper()
-	now := time.Now()
+	now := clk.Now() // Use clock
 	publishedAt := now.Add(-24 * time.Hour)
 	futureDate := now.Add(24 * time.Hour)
 
 	category1 := "health"
-	column1, err := testutil.CreateTestColumn(ctx, pool, uuid.New(), "Test Column 1", "Test content 1",
+	// Pass clk to CreateTestColumn
+	column1, err := testutil.CreateTestColumn(ctx, pool, clk, uuid.New(), "Test Column 1", "Test content 1",
 		pgtype.Text{String: category1, Valid: true},
 		[]string{"diet", "exercise"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
 	require.NoError(t, err, "Failed to create test column 1")
 
 	category2 := "nutrition"
-	column2, err := testutil.CreateTestColumn(ctx, pool, uuid.New(), "Test Column 2", "Test content 2",
+	// Pass clk to CreateTestColumn
+	column2, err := testutil.CreateTestColumn(ctx, pool, clk, uuid.New(), "Test Column 2", "Test content 2",
 		pgtype.Text{String: category2, Valid: true},
 		[]string{"diet", "food"},
 		pgtype.Timestamptz{Time: publishedAt, Valid: true})
 	require.NoError(t, err, "Failed to create test column 2")
 
-	column3, err := testutil.CreateTestColumn(ctx, pool, uuid.New(), "Unpublished Column", "This should not appear",
+	// Pass clk to CreateTestColumn
+	column3, err := testutil.CreateTestColumn(ctx, pool, clk, uuid.New(), "Unpublished Column", "This should not appear",
 		pgtype.Text{String: "health", Valid: true},
 		[]string{"diet"},
 		pgtype.Timestamptz{Time: futureDate, Valid: true})
@@ -53,10 +58,12 @@ func setupTestColumns(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (db
 
 func TestListPublishedColumns(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewColumnRepository(testPool)
-	handler := NewColumnHandler(repo, testLogger)
+	columnRepo := repo.NewColumnRepository(testPool)
+	handler := NewColumnHandler(columnRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
-	col1, col2, _, _, _ := setupTestColumns(t, ctx, testPool)
+	// Set a fixed time for setup consistency
+	mockClock.SetTime(time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC))
+	col1, col2, _, _, _ := setupTestColumns(t, ctx, testPool, mockClock) // Pass mockClock
 
 	protoCol1 := ToProtoColumn(col1)
 	protoCol2 := ToProtoColumn(col2)
@@ -129,11 +136,11 @@ func TestListPublishedColumns(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
+					// protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"), // Compare timestamps now
 					cmpopts.SortSlices(func(a, b *v1.Column) bool {
-						return a.Id < b.Id
+						return a.Id < b.Id // Keep sorting by ID for consistent order
 					}),
-					cmpopts.EquateApproxTime(time.Second),
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -146,10 +153,13 @@ func TestListPublishedColumns(t *testing.T) {
 
 func TestGetColumn(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewColumnRepository(testPool)
-	handler := NewColumnHandler(repo, testLogger)
+	columnRepo := repo.NewColumnRepository(testPool)
+	handler := NewColumnHandler(columnRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
-	col1, _, col3, _, _ := setupTestColumns(t, ctx, testPool)
+	// Set a fixed time for setup consistency
+	fixedTime := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime)
+	col1, _, col3, _, _ := setupTestColumns(t, ctx, testPool, mockClock) // Pass mockClock
 	nonExistentID := uuid.New()
 
 	protoCol1 := ToProtoColumn(col1)
@@ -197,8 +207,8 @@ func TestGetColumn(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					// protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"), // Compare timestamps now
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -211,10 +221,12 @@ func TestGetColumn(t *testing.T) {
 
 func TestListColumnsByCategory(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewColumnRepository(testPool)
-	handler := NewColumnHandler(repo, testLogger)
+	columnRepo := repo.NewColumnRepository(testPool)
+	handler := NewColumnHandler(columnRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
-	col1, col2, _, category1, category2 := setupTestColumns(t, ctx, testPool)
+	// Set a fixed time for setup consistency
+	mockClock.SetTime(time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC))
+	col1, col2, _, category1, category2 := setupTestColumns(t, ctx, testPool, mockClock) // Pass mockClock
 
 	protoCol1 := ToProtoColumn(col1)
 	protoCol2 := ToProtoColumn(col2)
@@ -290,11 +302,11 @@ func TestListColumnsByCategory(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
+					// protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"), // Compare timestamps now
 					cmpopts.SortSlices(func(a, b *v1.Column) bool {
-						return a.Id < b.Id
+						return a.Id < b.Id // Keep sorting by ID
 					}),
-					cmpopts.EquateApproxTime(time.Second),
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -307,10 +319,12 @@ func TestListColumnsByCategory(t *testing.T) {
 
 func TestListColumnsByTag(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewColumnRepository(testPool)
-	handler := NewColumnHandler(repo, testLogger)
+	columnRepo := repo.NewColumnRepository(testPool)
+	handler := NewColumnHandler(columnRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
-	col1, col2, _, _, _ := setupTestColumns(t, ctx, testPool)
+	// Set a fixed time for setup consistency
+	mockClock.SetTime(time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC))
+	col1, col2, _, _, _ := setupTestColumns(t, ctx, testPool, mockClock) // Pass mockClock
 
 	protoCol1 := ToProtoColumn(col1)
 	protoCol2 := ToProtoColumn(col2)
@@ -402,11 +416,11 @@ func TestListColumnsByTag(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"),
+					// protocmp.IgnoreFields(&v1.Column{}, "created_at", "updated_at"), // Compare timestamps now
 					cmpopts.SortSlices(func(a, b *v1.Column) bool {
-						return a.Id < b.Id
+						return a.Id < b.Id // Keep sorting by ID
 					}),
-					cmpopts.EquateApproxTime(time.Second),
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {

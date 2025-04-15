@@ -28,8 +28,8 @@ func NewDiaryEntryRepository(pool *pgxpool.Pool) *DiaryEntryRepository { // Retu
 	}
 }
 
-// Create creates a new diary entry
-func (r *DiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, title *string, content string, entryDate time.Time) (db.DiaryEntry, error) {
+// Create creates a new diary entry, accepting the current time.
+func (r *DiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, title *string, content string, entryDate time.Time, now time.Time) (db.DiaryEntry, error) {
 	var titleVal pgtype.Text
 	if title != nil {
 		titleVal = pgtype.Text{String: *title, Valid: true}
@@ -42,6 +42,8 @@ func (r *DiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, tit
 		Title:     titleVal,
 		Content:   content,
 		EntryDate: pgDate,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	dbEntry, err := r.q.CreateDiaryEntry(ctx, params)
@@ -53,18 +55,19 @@ func (r *DiaryEntryRepository) Create(ctx context.Context, userID uuid.UUID, tit
 	return dbEntry, nil
 }
 
-// Update updates an existing diary entry
-func (r *DiaryEntryRepository) Update(ctx context.Context, id, userID uuid.UUID, title *string, content string) (db.DiaryEntry, error) {
+// Update updates an existing diary entry, accepting the current time.
+func (r *DiaryEntryRepository) Update(ctx context.Context, id, userID uuid.UUID, title *string, content string, now time.Time) (db.DiaryEntry, error) {
 	var titleVal pgtype.Text
 	if title != nil {
 		titleVal = pgtype.Text{String: *title, Valid: true}
 	}
 
 	params := db.UpdateDiaryEntryParams{
-		ID:      id,
-		Title:   titleVal,
-		Content: content,
-		UserID:  userID, // Need UserID to ensure user owns the entry being updated
+		ID:        id,
+		Title:     titleVal,
+		Content:   content,
+		UserID:    userID, // Need UserID to ensure user owns the entry being updated
+		UpdatedAt: now,
 	}
 
 	dbEntry, err := r.q.UpdateDiaryEntry(ctx, params)

@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/atreya2011/health-management-api/internal/auth"
+	"github.com/atreya2011/health-management-api/internal/clock"
 	"github.com/atreya2011/health-management-api/internal/repo"
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
@@ -18,15 +19,17 @@ import (
 
 // BodyRecordHandler implements the body record service RPCs
 type BodyRecordHandler struct {
-	repo *repo.BodyRecordRepository // Use concrete repository type
-	log  *slog.Logger
+	repo  *repo.BodyRecordRepository // Use concrete repository type
+	log   *slog.Logger
+	clock clock.Clock
 }
 
 // NewBodyRecordHandler creates a new body record handler
-func NewBodyRecordHandler(repo *repo.BodyRecordRepository, log *slog.Logger) *BodyRecordHandler { // Use concrete repository type
+func NewBodyRecordHandler(repo *repo.BodyRecordRepository, log *slog.Logger, clock clock.Clock) *BodyRecordHandler {
 	return &BodyRecordHandler{
-		repo: repo,
-		log:  log,
+		repo:  repo,
+		log:   log,
+		clock: clock,
 	}
 }
 
@@ -81,9 +84,10 @@ func (h *BodyRecordHandler) CreateBodyRecord(ctx context.Context, req *connect.R
 	}
 	// Removed instantiation of repo.BodyRecord
 
-	// Call repository directly with new signature
-	h.log.InfoContext(ctx, "Saving body record", "userID", userID, "date", date)
-	savedRecord, err := h.repo.Save(ctx, userID, date, weight, bodyFat) // Use new signature
+	// Call repository directly with new signature, passing current time from clock
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Saving body record", "userID", userID, "date", date, "now", now)
+	savedRecord, err := h.repo.Save(ctx, userID, date, weight, bodyFat, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to save body record", "userID", userID, "error", err)
 		// Use CodeInternal for persistence errors

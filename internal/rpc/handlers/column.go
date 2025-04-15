@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"connectrpc.com/connect"
+	"github.com/atreya2011/health-management-api/internal/clock"
 	"github.com/atreya2011/health-management-api/internal/repo"
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	v1 "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1"
@@ -18,15 +18,17 @@ import (
 
 // ColumnHandler implements the column service RPCs
 type ColumnHandler struct {
-	repo *repo.ColumnRepository // Use concrete repository type
-	log  *slog.Logger
+	repo  *repo.ColumnRepository // Use concrete repository type
+	log   *slog.Logger
+	clock clock.Clock
 }
 
 // NewColumnHandler creates a new column handler
-func NewColumnHandler(repo *repo.ColumnRepository, log *slog.Logger) *ColumnHandler { // Use concrete repository type
+func NewColumnHandler(repo *repo.ColumnRepository, log *slog.Logger, clock clock.Clock) *ColumnHandler {
 	return &ColumnHandler{
-		repo: repo,
-		log:  log,
+		repo:  repo,
+		log:   log,
+		clock: clock,
 	}
 }
 
@@ -56,16 +58,17 @@ func (h *ColumnHandler) ListPublishedColumns(ctx context.Context, req *connect.R
 	// Calculate offset (from service)
 	offset := (pageNumber - 1) * pageSize
 
-	// Call repository directly
-	h.log.InfoContext(ctx, "Fetching published columns", "page", pageNumber, "pageSize", pageSize)
-	columns, err := h.repo.FindPublished(ctx, pageSize, offset) // Changed from columnApp.ListPublishedColumns
+	// Call repository directly, passing current time
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Fetching published columns", "page", pageNumber, "pageSize", pageSize, "now", now)
+	columns, err := h.repo.FindPublished(ctx, pageSize, offset, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to fetch published columns", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch published columns"))
 	}
 
-	// Get total count (from service)
-	total, err := h.repo.CountPublished(ctx)
+	// Get total count (from service), passing current time
+	total, err := h.repo.CountPublished(ctx, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to count published columns", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count published columns"))
@@ -105,9 +108,10 @@ func (h *ColumnHandler) GetColumn(ctx context.Context, req *connect.Request[v1.G
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid column ID: %w", err))
 	}
 
-	// Call repository directly
-	h.log.InfoContext(ctx, "Fetching column", "columnID", columnID)
-	column, err := h.repo.FindByID(ctx, columnID) // Changed from columnApp.GetColumn
+	// Call repository directly, passing current time
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Fetching column", "columnID", columnID, "now", now)
+	column, err := h.repo.FindByID(ctx, columnID, now)
 	if err != nil {
 		if errors.Is(err, repo.ErrColumnNotFound) { // Use postgres error
 			h.log.WarnContext(ctx, "Column not found", "columnID", columnID)
@@ -119,7 +123,8 @@ func (h *ColumnHandler) GetColumn(ctx context.Context, req *connect.Request[v1.G
 
 	// Check if the column is published using the PublishedAt field
 	// A column is published if PublishedAt is not NULL and is in the past.
-	isPublished := column.PublishedAt.Valid && column.PublishedAt.Time.Before(time.Now())
+	// isPublished := column.PublishedAt.Valid && column.PublishedAt.Time.Before(time.Now()) // Replaced direct check
+	isPublished := h.isColumnPublished(column) // Use method check
 	if !isPublished {
 		h.log.WarnContext(ctx, "Attempted to access unpublished column", "id", columnID)
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("column not found")) // Treat unpublished as not found
@@ -162,16 +167,17 @@ func (h *ColumnHandler) ListColumnsByCategory(ctx context.Context, req *connect.
 	// Calculate offset (from service)
 	offset := (pageNumber - 1) * pageSize
 
-	// Call repository directly
-	h.log.InfoContext(ctx, "Fetching columns by category", "category", req.Msg.Category, "page", pageNumber, "pageSize", pageSize)
-	columns, err := h.repo.FindByCategory(ctx, req.Msg.Category, pageSize, offset) // Changed from columnApp.ListColumnsByCategory
+	// Call repository directly, passing current time
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Fetching columns by category", "category", req.Msg.Category, "page", pageNumber, "pageSize", pageSize, "now", now)
+	columns, err := h.repo.FindByCategory(ctx, req.Msg.Category, pageSize, offset, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to fetch columns by category", "category", req.Msg.Category, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch columns by category"))
 	}
 
-	// Get total count (from service)
-	total, err := h.repo.CountByCategory(ctx, req.Msg.Category)
+	// Get total count (from service), passing current time
+	total, err := h.repo.CountByCategory(ctx, req.Msg.Category, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to count columns by category", "category", req.Msg.Category, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count columns by category"))
@@ -228,16 +234,17 @@ func (h *ColumnHandler) ListColumnsByTag(ctx context.Context, req *connect.Reque
 	// Calculate offset (from service)
 	offset := (pageNumber - 1) * pageSize
 
-	// Call repository directly
-	h.log.InfoContext(ctx, "Fetching columns by tag", "tag", req.Msg.Tag, "page", pageNumber, "pageSize", pageSize)
-	columns, err := h.repo.FindByTag(ctx, req.Msg.Tag, pageSize, offset) // Changed from columnApp.ListColumnsByTag
+	// Call repository directly, passing current time
+	now := h.clock.Now()
+	h.log.InfoContext(ctx, "Fetching columns by tag", "tag", req.Msg.Tag, "page", pageNumber, "pageSize", pageSize, "now", now)
+	columns, err := h.repo.FindByTag(ctx, req.Msg.Tag, pageSize, offset, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to fetch columns by tag", "tag", req.Msg.Tag, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch columns by tag"))
 	}
 
-	// Get total count (from service)
-	total, err := h.repo.CountByTag(ctx, req.Msg.Tag)
+	// Get total count (from service), passing current time
+	total, err := h.repo.CountByTag(ctx, req.Msg.Tag, now)
 	if err != nil {
 		h.log.ErrorContext(ctx, "Failed to count columns by tag", "tag", req.Msg.Tag, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to count columns by tag"))
@@ -292,8 +299,7 @@ func ToProtoColumn(column db.Column) *v1.Column { // Accept db.Column
 	return protoColumn
 }
 
-// Helper function to check if a column is published (needed for GetColumn)
-// This replaces the removed IsPublished method
-func isColumnPublished(column db.Column) bool {
-	return column.PublishedAt.Valid && column.PublishedAt.Time.Before(time.Now())
+// isColumnPublished checks if a column is published based on its PublishedAt time.
+func (h *ColumnHandler) isColumnPublished(column db.Column) bool {
+	return column.PublishedAt.Valid && column.PublishedAt.Time.Before(h.clock.Now())
 }

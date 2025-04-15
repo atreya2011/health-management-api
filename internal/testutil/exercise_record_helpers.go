@@ -12,7 +12,8 @@ import (
 
 // CreateTestExerciseRecord creates a test exercise record in the database using sqlc
 // Takes Queries directly and returns the generated db.ExerciseRecord.
-func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (db.ExerciseRecord, error) { // Return db.ExerciseRecord
+// Accepts the current time for timestamps.
+func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time, now time.Time) (db.ExerciseRecord, error) {
 	var durationMinutesVal, caloriesBurnedVal pgtype.Int4 // Use pgtype.Int4 for INTEGER
 
 	if durationMinutes != nil {
@@ -32,6 +33,8 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 		DurationMinutes: durationMinutesVal,
 		CaloriesBurned:  caloriesBurnedVal,
 		RecordedAt:      recordedAtUTC, // Pass time.Time directly (ensure it's UTC)
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	dbRecord, err := queries.CreateExerciseRecord(ctx, params)

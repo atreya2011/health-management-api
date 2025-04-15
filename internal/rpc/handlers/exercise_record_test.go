@@ -23,8 +23,13 @@ import (
 )
 
 func TestCreateExerciseRecord(t *testing.T) {
-	recordedAt := time.Now().UTC()
+	// Set a fixed time for the test
+	fixedTime := time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime) // Use the global mockClock
+
+	recordedAt := mockClock.Now().UTC() // Use mockClock
 	recordedAtPb := timestamppb.New(recordedAt)
+	fixedTimestampPb := timestamppb.New(fixedTime)
 
 	testCases := []struct {
 		name         string
@@ -48,6 +53,9 @@ func TestCreateExerciseRecord(t *testing.T) {
 					DurationMinutes: wrapperspb.Int32(30),
 					CaloriesBurned:  wrapperspb.Int32(250),
 					RecordedAt:      recordedAtPb,
+					// Add expected timestamps
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 		},
@@ -63,6 +71,9 @@ func TestCreateExerciseRecord(t *testing.T) {
 					UserId:       testUserID.String(),
 					ExerciseName: "Walking",
 					RecordedAt:   recordedAtPb,
+					// Add expected timestamps
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 		},
@@ -89,14 +100,17 @@ func TestCreateExerciseRecord(t *testing.T) {
 			name: "Success - Missing RecordedAt",
 			req: &v1.CreateExerciseRecordRequest{
 				ExerciseName: "Swimming",
-				RecordedAt:   nil,
+				RecordedAt:   nil, // RecordedAt will be set to mockClock.Now() by the handler
 			},
 			expectError: false,
 			expectedResp: &v1.CreateExerciseRecordResponse{
 				ExerciseRecord: &v1.ExerciseRecord{
 					UserId:       testUserID.String(),
 					ExerciseName: "Swimming",
-					RecordedAt:   nil,
+					RecordedAt:   fixedTimestampPb, // Expect handler to set this to mockClock.Now()
+					// Add expected timestamps
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 		},
@@ -105,8 +119,8 @@ func TestCreateExerciseRecord(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := repo.NewExerciseRecordRepository(testPool)
-			handler := NewExerciseRecordHandler(repo, testLogger)
+			exerciseRepo := repo.NewExerciseRecordRepository(testPool)
+			handler := NewExerciseRecordHandler(exerciseRepo, testLogger, mockClock) // Pass mockClock
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 
@@ -125,10 +139,12 @@ func TestCreateExerciseRecord(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.ExerciseRecord{}, "id", "created_at", "updated_at", "recorded_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					protocmp.IgnoreFields(&v1.ExerciseRecord{}, "id"), // Only ignore ID
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
+				// Special handling for nil RecordedAt case - expect it to be set by handler
 				if tc.req.RecordedAt == nil && tc.expectedResp != nil && tc.expectedResp.ExerciseRecord != nil {
+					// We already set the expected RecordedAt to fixedTimestampPb above
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -141,18 +157,22 @@ func TestCreateExerciseRecord(t *testing.T) {
 
 func TestListExerciseRecords(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewExerciseRecordRepository(testPool)
-	handler := NewExerciseRecordHandler(repo, testLogger)
+	exerciseRepo := repo.NewExerciseRecordRepository(testPool)
+	handler := NewExerciseRecordHandler(exerciseRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
 	testCtx := newTestContext(ctx)
 
-	today := time.Now().UTC()
+	// Setup: Create test records using mock clock
+	mockClock.SetTime(time.Date(2024, 1, 15, 14, 10, 0, 0, time.UTC)) // Set time for setup
+	today := mockClock.Now().UTC()
 	yesterday := today.Add(-24 * time.Hour)
 	duration1, duration2 := int32(30), int32(45)
 	calories1, calories2 := int32(250), int32(350)
-	recordToday, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Running", &duration1, &calories1, today)
+	// Assuming CreateTestExerciseRecord uses the time passed to it correctly
+	now := mockClock.Now()                                                                                                             // Get current mock time
+	recordToday, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Running", &duration1, &calories1, today, now) // Pass now
 	require.NoError(t, err)
-	recordYesterday, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Weight Training", &duration2, &calories2, yesterday)
+	recordYesterday, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Weight Training", &duration2, &calories2, yesterday, now) // Pass now
 	require.NoError(t, err)
 
 	protoToday := ToProtoExerciseRecord(recordToday)
@@ -241,11 +261,12 @@ func TestListExerciseRecords(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.ExerciseRecord{}, "created_at", "updated_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					// protocmp.IgnoreFields(&v1.ExerciseRecord{}, "created_at", "updated_at"), // Compare timestamps now
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 					cmpopts.SortSlices(func(a, b *v1.ExerciseRecord) bool {
+						// Keep sorting by recorded time for consistent order
 						if a.RecordedAt == nil || b.RecordedAt == nil {
-							return a.RecordedAt != nil
+							return a.RecordedAt != nil // Treat nil as earliest
 						}
 						return a.RecordedAt.AsTime().After(b.RecordedAt.AsTime())
 					}),
@@ -260,7 +281,11 @@ func TestListExerciseRecords(t *testing.T) {
 }
 
 func TestDeleteExerciseRecord(t *testing.T) {
-	recordedAt := time.Now().UTC()
+	// Set a fixed time for the test
+	fixedTime := time.Date(2024, 1, 15, 14, 20, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime) // Use the global mockClock
+
+	recordedAt := mockClock.Now().UTC() // Use mockClock
 	duration := int32(30)
 	calories := int32(250)
 
@@ -275,7 +300,8 @@ func TestDeleteExerciseRecord(t *testing.T) {
 		{
 			name: "Success - Delete Existing Record",
 			setup: func(t *testing.T, ctx context.Context) db.ExerciseRecord {
-				record, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Record to Delete", &duration, &calories, recordedAt)
+				now := mockClock.Now()                                                                                                                    // Get current mock time for setup
+				record, err := testutil.CreateTestExerciseRecord(ctx, testQueries, testUserID, "Record to Delete", &duration, &calories, recordedAt, now) // Pass now
 				require.NoError(t, err)
 				return record
 			},
@@ -320,8 +346,8 @@ func TestDeleteExerciseRecord(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := repo.NewExerciseRecordRepository(testPool)
-			handler := NewExerciseRecordHandler(repo, testLogger)
+			exerciseRepo := repo.NewExerciseRecordRepository(testPool)
+			handler := NewExerciseRecordHandler(exerciseRepo, testLogger, mockClock) // Pass mockClock
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 

@@ -5,22 +5,23 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/atreya2011/health-management-api/internal/clock"
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// CreateTestColumn creates a test column in the database using the provided pool and returns the created record.
-func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, title, content string,
-	category pgtype.Text, tags []string, publishedAt pgtype.Timestamptz) (db.Column, error) { // Return db.Column and error
+// CreateTestColumn creates a test column in the database using the provided pool and clock, returning the created record.
+func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, clk clock.Clock, id uuid.UUID, title, content string,
+	category pgtype.Text, tags []string, publishedAt pgtype.Timestamptz) (db.Column, error) {
 
 	// Create the column in the database
 	insertQuery := `
 		INSERT INTO columns (id, title, content, category, tags, published_at, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	nowUTC := time.Now().UTC()
+	nowUTC := clk.Now().UTC()
 	publishedAtVal := publishedAt
 
 	_, err := pool.Exec(ctx, insertQuery,
@@ -63,9 +64,9 @@ func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, tit
 	return createdColumn, nil
 }
 
-// SeedMockColumns deletes existing columns and inserts a predefined set of mock columns.
+// SeedMockColumns deletes existing columns and inserts a predefined set of mock columns using the provided clock.
 // This is useful for setting up a consistent state for tests or seeding development environments.
-func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
+func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool, clk clock.Clock) error {
 	// Delete existing columns to avoid conflicts and ensure a clean state
 	_, err := pool.Exec(ctx, "TRUNCATE TABLE columns RESTART IDENTITY CASCADE") // Use TRUNCATE for efficiency
 	if err != nil {
@@ -87,7 +88,7 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 			Content:     "Content about health tips...",
 			Category:    "health",
 			Tags:        []string{"health", "wellness"},
-			PublishedAt: time.Now().Add(-24 * time.Hour),
+			PublishedAt: clk.Now().Add(-24 * time.Hour),
 		},
 		{
 			ID:          uuid.New(),
@@ -95,7 +96,7 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 			Content:     "Content about diet strategies...",
 			Category:    "nutrition",
 			Tags:        []string{"diet", "nutrition", "health"},
-			PublishedAt: time.Now().Add(-48 * time.Hour),
+			PublishedAt: clk.Now().Add(-48 * time.Hour),
 		},
 		{
 			ID:          uuid.New(),
@@ -103,7 +104,7 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 			Content:     "Content about exercise routines...",
 			Category:    "fitness",
 			Tags:        []string{"exercise", "fitness"},
-			PublishedAt: time.Now().Add(-72 * time.Hour),
+			PublishedAt: clk.Now().Add(-72 * time.Hour),
 		},
 		// Add an unpublished column for testing
 		{
@@ -112,7 +113,7 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 			Content:     "Content about future trends...",
 			Category:    "trends",
 			Tags:        []string{"future", "health"},
-			PublishedAt: time.Now().Add(24 * time.Hour), // Published in the future
+			PublishedAt: clk.Now().Add(24 * time.Hour), // Published in the future
 		},
 	}
 
@@ -121,7 +122,7 @@ func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
 		categoryVal := pgtype.Text{String: data.Category, Valid: data.Category != ""}
 		publishedAtVal := pgtype.Timestamptz{Time: data.PublishedAt.UTC(), Valid: !data.PublishedAt.IsZero()} // Ensure UTC
 
-		_, err := CreateTestColumn(ctx, pool, data.ID, data.Title, data.Content, categoryVal, data.Tags, publishedAtVal) // Capture error only
+		_, err := CreateTestColumn(ctx, pool, clk, data.ID, data.Title, data.Content, categoryVal, data.Tags, publishedAtVal)
 		if err != nil {
 			// Log or handle the error for the specific column creation failure
 			fmt.Printf("Warning: Failed to create mock column '%s' using CreateTestColumn: %v\n", data.Title, err)

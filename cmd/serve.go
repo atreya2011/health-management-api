@@ -17,6 +17,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/atreya2011/health-management-api/internal/auth"
+	"github.com/atreya2011/health-management-api/internal/clock"
 	"github.com/atreya2011/health-management-api/internal/config"
 	"github.com/atreya2011/health-management-api/internal/log"
 	"github.com/atreya2011/health-management-api/internal/repo"
@@ -107,6 +108,9 @@ func runServer() {
 	// exerciseRecordService := application.NewExerciseRecordService(exerciseRecordRepo, logger) // Removed
 	// columnService := application.NewColumnService(columnRepo, logger) // Removed
 
+	// Initialize clock
+	realClock := clock.NewRealClock()
+
 	// Initialize auth interceptor
 	jwtConfig := &auth.JWTConfig{
 		SecretKey: cfg.JWT.SecretKey,
@@ -120,10 +124,10 @@ func runServer() {
 	)
 
 	// Initialize handlers
-	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordRepo, logger)             // Changed from bodyRecordService
-	diaryHandler := handlers.NewDiaryHandler(diaryEntryRepo, logger)                       // Changed from diaryService
-	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordRepo, logger) // Changed from exerciseRecordService
-	columnHandler := handlers.NewColumnHandler(columnRepo, logger)                         // Changed from columnService
+	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordRepo, logger, realClock)
+	diaryHandler := handlers.NewDiaryHandler(diaryEntryRepo, logger, realClock)
+	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordRepo, logger, realClock)
+	columnHandler := handlers.NewColumnHandler(columnRepo, logger, realClock)
 
 	// Create router
 	mux := http.NewServeMux()

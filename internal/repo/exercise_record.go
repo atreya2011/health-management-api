@@ -28,8 +28,8 @@ func NewExerciseRecordRepository(pool *pgxpool.Pool) *ExerciseRecordRepository {
 	}
 }
 
-// Create creates a new exercise record
-func (r *ExerciseRecordRepository) Create(ctx context.Context, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (db.ExerciseRecord, error) {
+// Create creates a new exercise record, accepting the current time.
+func (r *ExerciseRecordRepository) Create(ctx context.Context, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time, now time.Time) (db.ExerciseRecord, error) {
 	var durationMinutesVal, caloriesBurnedVal pgtype.Int4
 
 	if durationMinutes != nil {
@@ -48,6 +48,8 @@ func (r *ExerciseRecordRepository) Create(ctx context.Context, userID uuid.UUID,
 		DurationMinutes: durationMinutesVal,
 		CaloriesBurned:  caloriesBurnedVal,
 		RecordedAt:      recordedAtUTC,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	dbRecord, err := r.q.CreateExerciseRecord(ctx, params)

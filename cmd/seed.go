@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/atreya2011/health-management-api/internal/clock"
 	"github.com/atreya2011/health-management-api/internal/config"
 	"github.com/atreya2011/health-management-api/internal/log"
 	"github.com/atreya2011/health-management-api/internal/repo"
@@ -119,8 +120,9 @@ func runSeed() {
 		weight := 70.0 + float64(i%5)
 		bodyFat := 15.0 + float64(i%3)
 
-		// Call Save with individual arguments
-		_, err := bodyRecordRepo.Save(ctx, testUser.ID, date, &weight, &bodyFat)
+		// Call Save with individual arguments, passing current time
+		currentTime := time.Now() // Get current time for this record
+		_, err := bodyRecordRepo.Save(ctx, testUser.ID, date, &weight, &bodyFat, currentTime) // Pass currentTime
 		if err != nil {
 			logger.Warn("Failed to create mock body record", "date", date, "error", err)
 			continue // Continue to next day even if one fails
@@ -134,7 +136,8 @@ func runSeed() {
 	// Seed mock columns if requested
 	if mock {
 		logger.Info("Seeding mock columns using testutil...")
-		err := testutil.SeedMockColumns(ctx, dbPool)
+		realClock := clock.NewRealClock()
+		err := testutil.SeedMockColumns(ctx, dbPool, realClock)
 		if err != nil {
 			logger.Error("Failed to seed mock columns", "error", err)
 			// Decide if we should return or just log the error

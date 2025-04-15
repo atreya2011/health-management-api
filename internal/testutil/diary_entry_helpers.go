@@ -12,7 +12,8 @@ import (
 
 // CreateTestDiaryEntry creates a test diary entry in the database using sqlc
 // Takes Queries directly and returns the created entry.
-func CreateTestDiaryEntry(ctx context.Context, queries *db.Queries, userID uuid.UUID, title string, content string, entryDate time.Time) (db.DiaryEntry, error) { // Return db.DiaryEntry
+// Accepts the current time for timestamps.
+func CreateTestDiaryEntry(ctx context.Context, queries *db.Queries, userID uuid.UUID, title string, content string, entryDate time.Time, now time.Time) (db.DiaryEntry, error) {
 	var titleVal pgtype.Text // Use pgtype.Text
 
 	if title != "" {
@@ -26,6 +27,8 @@ func CreateTestDiaryEntry(ctx context.Context, queries *db.Queries, userID uuid.
 		Title:     titleVal,
 		Content:   content,
 		EntryDate: pgDate, // Use pgtype.Date
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	dbEntry, err := queries.CreateDiaryEntry(ctx, params)

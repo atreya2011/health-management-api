@@ -16,14 +16,21 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb" // Added timestamppb import
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	// "github.com/atreya2011/health-management-api/internal/clock" // Removed unused clock import
 	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 )
 
 func TestCreateDiaryEntry(t *testing.T) {
-	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
+	// Set a fixed time for the test
+	fixedTime := time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime) // Use the global mockClock
+
+	entryDate := mockClock.Now().UTC().Truncate(24 * time.Hour) // Use mockClock
 	entryDateStr := entryDate.Format("2006-01-02")
+	fixedTimestampPb := timestamppb.New(fixedTime)
 
 	testCases := []struct {
 		name         string
@@ -45,6 +52,9 @@ func TestCreateDiaryEntry(t *testing.T) {
 					Title:     wrapperspb.String("Test Diary Entry"),
 					Content:   "This is a test diary entry content.",
 					EntryDate: entryDateStr,
+					// Add expected timestamps based on fixedTime
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 		},
@@ -62,6 +72,9 @@ func TestCreateDiaryEntry(t *testing.T) {
 					Title:     nil,
 					Content:   "Content without a title.",
 					EntryDate: entryDateStr,
+					// Add expected timestamps based on fixedTime
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 		},
@@ -90,8 +103,8 @@ func TestCreateDiaryEntry(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := repo.NewDiaryEntryRepository(testPool)
-			handler := NewDiaryHandler(repo, testLogger)
+			diaryRepo := repo.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(diaryRepo, testLogger, mockClock) // Pass mockClock
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 
@@ -110,8 +123,8 @@ func TestCreateDiaryEntry(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.DiaryEntry{}, "id", "created_at", "updated_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					protocmp.IgnoreFields(&v1.DiaryEntry{}, "id"), // Only ignore ID
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -123,11 +136,16 @@ func TestCreateDiaryEntry(t *testing.T) {
 }
 
 func TestUpdateDiaryEntry(t *testing.T) {
-	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
+	// Set a fixed time for the test
+	fixedTime := time.Date(2024, 1, 15, 11, 10, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime) // Use the global mockClock
+
+	entryDate := mockClock.Now().UTC().Truncate(24 * time.Hour) // Use mockClock
 	originalTitle := "Original Title"
 	originalContent := "Original content."
 
 	entryDateStr := entryDate.Format("2006-01-02")
+	fixedTimestampPb := timestamppb.New(fixedTime)
 
 	testCases := []struct {
 		name         string
@@ -140,7 +158,8 @@ func TestUpdateDiaryEntry(t *testing.T) {
 		{
 			name: "Success - Update Title and Content",
 			setup: func(t *testing.T, ctx context.Context) db.DiaryEntry {
-				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate)
+				now := mockClock.Now() // Get current mock time for setup
+				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate, now) // Pass now
 				require.NoError(t, err)
 				return entry
 			},
@@ -155,6 +174,9 @@ func TestUpdateDiaryEntry(t *testing.T) {
 					Title:     wrapperspb.String("Updated Title"),
 					Content:   "Updated content.",
 					EntryDate: entryDateStr,
+					// Add expected timestamps
+					CreatedAt: fixedTimestampPb, // Assuming CreatedAt doesn't change on update
+					UpdatedAt: fixedTimestampPb, // UpdatedAt should match mockClock time
 				},
 			},
 			verifyAfter: nil,
@@ -162,7 +184,8 @@ func TestUpdateDiaryEntry(t *testing.T) {
 		{
 			name: "Success - Update Only Title",
 			setup: func(t *testing.T, ctx context.Context) db.DiaryEntry {
-				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate)
+				now := mockClock.Now() // Get current mock time for setup
+				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate, now) // Pass now
 				require.NoError(t, err)
 				return entry
 			},
@@ -177,6 +200,9 @@ func TestUpdateDiaryEntry(t *testing.T) {
 					Title:     wrapperspb.String("New Title Only"),
 					Content:   originalContent,
 					EntryDate: entryDateStr,
+					// Add expected timestamps
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 			verifyAfter: nil,
@@ -184,7 +210,8 @@ func TestUpdateDiaryEntry(t *testing.T) {
 		{
 			name: "Success - Update Only Content",
 			setup: func(t *testing.T, ctx context.Context) db.DiaryEntry {
-				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate)
+				now := mockClock.Now() // Get current mock time for setup
+				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, originalTitle, originalContent, entryDate, now) // Pass now
 				require.NoError(t, err)
 				return entry
 			},
@@ -199,6 +226,9 @@ func TestUpdateDiaryEntry(t *testing.T) {
 					Title:     wrapperspb.String(originalTitle),
 					Content:   "New Content Only",
 					EntryDate: entryDateStr,
+					// Add expected timestamps
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 			verifyAfter: nil,
@@ -235,8 +265,8 @@ func TestUpdateDiaryEntry(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := repo.NewDiaryEntryRepository(testPool)
-			handler := NewDiaryHandler(repo, testLogger)
+			diaryRepo := repo.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(diaryRepo, testLogger, mockClock) // Pass mockClock
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 
@@ -259,10 +289,17 @@ func TestUpdateDiaryEntry(t *testing.T) {
 				require.NotNil(t, resp)
 				require.NotNil(t, resp.Msg)
 
+				// Need to fetch the original CreatedAt for comparison as it shouldn't change
+				getReq := connect.NewRequest(&v1.GetDiaryEntryRequest{Id: req.Msg.Id})
+				getResp, getErr := handler.GetDiaryEntry(testCtx, getReq)
+				require.NoError(t, getErr, "Failed to get entry to check CreatedAt")
+				require.NotNil(t, getResp.Msg.DiaryEntry.CreatedAt, "Original CreatedAt is nil")
+				tc.expectedResp.DiaryEntry.CreatedAt = getResp.Msg.DiaryEntry.CreatedAt // Set expected CreatedAt
+
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.DiaryEntry{}, "created_at", "updated_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					// protocmp.IgnoreFields(&v1.DiaryEntry{}, "created_at", "updated_at"), // Compare timestamps now
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -278,11 +315,16 @@ func TestUpdateDiaryEntry(t *testing.T) {
 }
 
 func TestGetDiaryEntry(t *testing.T) {
-	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
+	// Set a fixed time for the test
+	fixedTime := time.Date(2024, 1, 15, 11, 20, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime) // Use the global mockClock
+
+	entryDate := mockClock.Now().UTC().Truncate(24 * time.Hour) // Use mockClock
 	testTitle := "Test Title"
 	testContent := "Test content."
 
 	entryDateStr := entryDate.Format("2006-01-02")
+	fixedTimestampPb := timestamppb.New(fixedTime)
 
 	testCases := []struct {
 		name         string
@@ -294,7 +336,8 @@ func TestGetDiaryEntry(t *testing.T) {
 		{
 			name: "Success - Get Existing Entry",
 			setup: func(t *testing.T, ctx context.Context) db.DiaryEntry {
-				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, testTitle, testContent, entryDate)
+				now := mockClock.Now() // Get current mock time for setup
+				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, testTitle, testContent, entryDate, now) // Pass now
 				require.NoError(t, err)
 				return entry
 			},
@@ -306,6 +349,9 @@ func TestGetDiaryEntry(t *testing.T) {
 					Title:     wrapperspb.String(testTitle),
 					Content:   testContent,
 					EntryDate: entryDateStr,
+					// Add expected timestamps
+					CreatedAt: fixedTimestampPb,
+					UpdatedAt: fixedTimestampPb,
 				},
 			},
 		},
@@ -332,8 +378,8 @@ func TestGetDiaryEntry(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := repo.NewDiaryEntryRepository(testPool)
-			handler := NewDiaryHandler(repo, testLogger)
+			diaryRepo := repo.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(diaryRepo, testLogger, mockClock) // Pass mockClock
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 
@@ -359,8 +405,8 @@ func TestGetDiaryEntry(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.DiaryEntry{}, "created_at", "updated_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					// protocmp.IgnoreFields(&v1.DiaryEntry{}, "created_at", "updated_at"), // Compare timestamps now
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 				}
 
 				if diff := cmp.Diff(tc.expectedResp, resp.Msg, cmpOpts...); diff != "" {
@@ -373,17 +419,21 @@ func TestGetDiaryEntry(t *testing.T) {
 
 func TestListDiaryEntries(t *testing.T) {
 	resetDB(t, testPool)
-	repo := repo.NewDiaryEntryRepository(testPool)
-	handler := NewDiaryHandler(repo, testLogger)
+	diaryRepo := repo.NewDiaryEntryRepository(testPool)
+	handler := NewDiaryHandler(diaryRepo, testLogger, mockClock) // Pass mockClock
 	ctx := context.Background()
 	testCtx := newTestContext(ctx)
 
-	// Setup: Create test entries
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Setup: Create test entries using mock clock
+	mockClock.SetTime(time.Date(2024, 1, 15, 11, 30, 0, 0, time.UTC)) // Set time for setup
+	today := mockClock.Now().UTC().Truncate(24 * time.Hour)
 	yesterday := today.Add(-24 * time.Hour)
-	entryToday, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Today's Entry", "Content for today", today)
+	now := mockClock.Now() // Get current mock time
+	entryToday, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Today's Entry", "Content for today", today, now) // Pass now
 	require.NoError(t, err)
-	entryYesterday, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Yesterday's Entry", "Content for yesterday", yesterday)
+	// Need to set time again if CreateTestDiaryEntry uses its own time source internally (it shouldn't if updated)
+	// mockClock.SetTime(time.Date(2024, 1, 14, 11, 30, 0, 0, time.UTC)) // Assuming CreateTestDiaryEntry uses mockClock now
+	entryYesterday, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, "Yesterday's Entry", "Content for yesterday", yesterday, now) // Pass now
 	require.NoError(t, err)
 
 	// Convert to proto
@@ -473,9 +523,10 @@ func TestListDiaryEntries(t *testing.T) {
 
 				cmpOpts := []cmp.Option{
 					protocmp.Transform(),
-					protocmp.IgnoreFields(&v1.DiaryEntry{}, "created_at", "updated_at"),
-					cmpopts.EquateApproxTime(time.Second),
+					// protocmp.IgnoreFields(&v1.DiaryEntry{}, "created_at", "updated_at"), // Compare timestamps now
+					// cmpopts.EquateApproxTime(time.Second), // Remove time approximation
 					cmpopts.SortSlices(func(a, b *v1.DiaryEntry) bool {
+						// Keep sorting by date for consistent order
 						return a.EntryDate > b.EntryDate
 					}),
 				}
@@ -489,7 +540,11 @@ func TestListDiaryEntries(t *testing.T) {
 }
 
 func TestDeleteDiaryEntry(t *testing.T) {
-	entryDate := time.Now().UTC().Truncate(24 * time.Hour)
+	// Set a fixed time for the test
+	fixedTime := time.Date(2024, 1, 15, 11, 40, 0, 0, time.UTC)
+	mockClock.SetTime(fixedTime) // Use the global mockClock
+
+	entryDate := mockClock.Now().UTC().Truncate(24 * time.Hour) // Use mockClock
 	titleToDelete := "Entry to Delete"
 	contentToDelete := "This entry will be deleted."
 
@@ -504,7 +559,8 @@ func TestDeleteDiaryEntry(t *testing.T) {
 		{
 			name: "Success - Delete Existing Entry",
 			setup: func(t *testing.T, ctx context.Context) db.DiaryEntry {
-				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, titleToDelete, contentToDelete, entryDate)
+				now := mockClock.Now() // Get current mock time for setup
+				entry, err := testutil.CreateTestDiaryEntry(ctx, testQueries, testUserID, titleToDelete, contentToDelete, entryDate, now) // Pass now
 				require.NoError(t, err)
 				return entry
 			},
@@ -544,8 +600,8 @@ func TestDeleteDiaryEntry(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDB(t, testPool)
-			repo := repo.NewDiaryEntryRepository(testPool)
-			handler := NewDiaryHandler(repo, testLogger)
+			diaryRepo := repo.NewDiaryEntryRepository(testPool)
+			handler := NewDiaryHandler(diaryRepo, testLogger, mockClock) // Pass mockClock
 			ctx := context.Background()
 			testCtx := newTestContext(ctx)
 
