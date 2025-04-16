@@ -1,10 +1,10 @@
 -- name: CreateBodyRecord :one
-INSERT INTO body_records (user_id, date, weight_kg, body_fat_percentage)
-VALUES ($1, $2, $3, $4)
+INSERT INTO body_records (user_id, date, weight_kg, body_fat_percentage, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (user_id, date) DO UPDATE SET
     weight_kg = EXCLUDED.weight_kg,
     body_fat_percentage = EXCLUDED.body_fat_percentage,
-    updated_at = CURRENT_TIMESTAMP
+    updated_at = $6
 RETURNING *;
 
 -- name: ListBodyRecordsByUser :many

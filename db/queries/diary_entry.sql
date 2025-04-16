@@ -1,11 +1,11 @@
 -- name: CreateDiaryEntry :one
-INSERT INTO diary_entries (user_id, title, content, entry_date)
-VALUES ($1, $2, $3, $4)
+INSERT INTO diary_entries (user_id, title, content, entry_date, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpdateDiaryEntry :one
 UPDATE diary_entries
-SET title = $2, content = $3, updated_at = CURRENT_TIMESTAMP
+SET title = $2, content = $3, updated_at = $5
 WHERE id = $1 AND user_id = $4
 RETURNING *;
 
