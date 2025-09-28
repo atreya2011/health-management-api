@@ -2,37 +2,29 @@ package testutil
 
 import (
 	"context"
-	// "database/sql" // Removed unused import
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
+	"github.com/atreya2011/health-management-api/internal/clock"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// NewColumnRepository creates a new column repository for testing
-func NewColumnRepository(pool *pgxpool.Pool) domain.ColumnRepository {
-	return postgres.NewPgColumnRepository(pool)
-}
-
-// CreateTestColumn creates a test column in the database using the provided pool
-func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, title, content string,
-	category pgtype.Text, tags []string, publishedAt pgtype.Timestamptz) error { // Use pgtype
+// CreateTestColumn creates a test column in the database using the provided pool and clock, returning the created record.
+func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, clk clock.Clock, id uuid.UUID, title, content string,
+	category pgtype.Text, tags []string, publishedAt pgtype.Timestamptz) (db.Column, error) {
 
 	// Create the column in the database
-	query := `
+	insertQuery := `
 		INSERT INTO columns (id, title, content, category, tags, published_at, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	// TIMESTAMPTZ columns usually map directly to time.Time with pgx/v5
-	// Ensure times are UTC before insertion
-	nowUTC := time.Now().UTC()
-	publishedAtVal := publishedAt // Use the passed pgtype.Timestamptz directly
+	nowUTC := clk.Now().UTC()
+	publishedAtVal := publishedAt
 
-	_, err := pool.Exec(ctx, query,
+	_, err := pool.Exec(ctx, insertQuery,
 		id,
 		title,
 		content,
@@ -42,84 +34,98 @@ func CreateTestColumn(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, tit
 		nowUTC,         // Pass time.Time (UTC) for created_at
 		nowUTC,         // Pass time.Time (UTC) for updated_at
 	)
-	
+
 	if err != nil {
-		return fmt.Errorf("could not create test column: %w", err)
+		return db.Column{}, fmt.Errorf("could not insert test column: %w", err)
 	}
-	
-	return nil
+
+	// Fetch the created column to return it
+	selectQuery := `
+		SELECT id, title, content, category, tags, published_at, created_at, updated_at
+		FROM columns
+		WHERE id = $1
+	`
+	row := pool.QueryRow(ctx, selectQuery, id)
+	var createdColumn db.Column
+	err = row.Scan(
+		&createdColumn.ID,
+		&createdColumn.Title,
+		&createdColumn.Content,
+		&createdColumn.Category,
+		&createdColumn.Tags,
+		&createdColumn.PublishedAt,
+		&createdColumn.CreatedAt,
+		&createdColumn.UpdatedAt,
+	)
+	if err != nil {
+		return db.Column{}, fmt.Errorf("could not fetch created test column: %w", err)
+	}
+
+	return createdColumn, nil
 }
 
-// SeedMockColumns deletes existing columns and inserts a predefined set of mock columns.
+// SeedMockColumns deletes existing columns and inserts a predefined set of mock columns using the provided clock.
 // This is useful for setting up a consistent state for tests or seeding development environments.
-func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool) error {
+func SeedMockColumns(ctx context.Context, pool *pgxpool.Pool, clk clock.Clock) error {
 	// Delete existing columns to avoid conflicts and ensure a clean state
-	_, err := pool.Exec(ctx, "DELETE FROM columns")
+	_, err := pool.Exec(ctx, "TRUNCATE TABLE columns RESTART IDENTITY CASCADE") // Use TRUNCATE for efficiency
 	if err != nil {
 		return fmt.Errorf("failed to delete existing columns: %w", err)
 	}
 
-	// Define mock columns
-	columns := []*domain.Column{
+	// Define mock data directly
+	mockColumnsData := []struct {
+		ID          uuid.UUID
+		Title       string
+		Content     string
+		Category    string // Use string for simplicity, convert to pgtype.Text later
+		Tags        []string
+		PublishedAt time.Time // Use time.Time, convert to pgtype.Timestamptz later
+	}{
 		{
-			ID:      uuid.New(),
-			Title:   "Health Tips for Daily Life",
-			Content: "Content about health tips...",
-			Category: func() *string {
-				s := "health"
-				return &s
-			}(),
+			ID:          uuid.New(),
+			Title:       "Health Tips for Daily Life",
+			Content:     "Content about health tips...",
+			Category:    "health",
 			Tags:        []string{"health", "wellness"},
-			PublishedAt: func() *time.Time { t := time.Now().Add(-24 * time.Hour); return &t }(),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			PublishedAt: clk.Now().Add(-24 * time.Hour),
 		},
 		{
-			ID:      uuid.New(),
-			Title:   "Diet Strategies for Weight Loss",
-			Content: "Content about diet strategies...",
-			Category: func() *string {
-				s := "nutrition"
-				return &s
-			}(),
+			ID:          uuid.New(),
+			Title:       "Diet Strategies for Weight Loss",
+			Content:     "Content about diet strategies...",
+			Category:    "nutrition",
 			Tags:        []string{"diet", "nutrition", "health"},
-			PublishedAt: func() *time.Time { t := time.Now().Add(-48 * time.Hour); return &t }(),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			PublishedAt: clk.Now().Add(-48 * time.Hour),
 		},
 		{
-			ID:      uuid.New(),
-			Title:   "Exercise Routines for Beginners",
-			Content: "Content about exercise routines...",
-			Category: func() *string {
-				s := "fitness"
-				return &s
-			}(),
+			ID:          uuid.New(),
+			Title:       "Exercise Routines for Beginners",
+			Content:     "Content about exercise routines...",
+			Category:    "fitness",
 			Tags:        []string{"exercise", "fitness"},
-			PublishedAt: func() *time.Time { t := time.Now().Add(-72 * time.Hour); return &t }(),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			PublishedAt: clk.Now().Add(-72 * time.Hour),
+		},
+		// Add an unpublished column for testing
+		{
+			ID:          uuid.New(),
+			Title:       "Future Health Trends",
+			Content:     "Content about future trends...",
+			Category:    "trends",
+			Tags:        []string{"future", "health"},
+			PublishedAt: clk.Now().Add(24 * time.Hour), // Published in the future
 		},
 	}
 
 	// Insert mock columns using CreateTestColumn
-	for _, column := range columns {
-		// Convert domain types to pgtype types needed by CreateTestColumn
-		var categoryVal pgtype.Text
-		if column.Category != nil {
-			categoryVal = pgtype.Text{String: *column.Category, Valid: true}
-		}
+	for _, data := range mockColumnsData {
+		categoryVal := pgtype.Text{String: data.Category, Valid: data.Category != ""}
+		publishedAtVal := pgtype.Timestamptz{Time: data.PublishedAt.UTC(), Valid: !data.PublishedAt.IsZero()} // Ensure UTC
 
-		var publishedAtVal pgtype.Timestamptz
-		if column.PublishedAt != nil {
-			publishedAtVal = pgtype.Timestamptz{Time: column.PublishedAt.UTC(), Valid: true} // Ensure UTC
-		}
-
-		// Call CreateTestColumn for each mock column
-		err := CreateTestColumn(ctx, pool, column.ID, column.Title, column.Content, categoryVal, column.Tags, publishedAtVal)
+		_, err := CreateTestColumn(ctx, pool, clk, data.ID, data.Title, data.Content, categoryVal, data.Tags, publishedAtVal)
 		if err != nil {
 			// Log or handle the error for the specific column creation failure
-			fmt.Printf("Warning: Failed to create mock column '%s' using CreateTestColumn: %v\n", column.Title, err)
+			fmt.Printf("Warning: Failed to create mock column '%s' using CreateTestColumn: %v\n", data.Title, err)
 		}
 	}
 

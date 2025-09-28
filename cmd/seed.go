@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
-	applog "github.com/atreya2011/health-management-api/internal/infrastructure/log"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
-	"github.com/atreya2011/health-management-api/internal/testutil" // Added import
+	"github.com/atreya2011/health-management-api/internal/clock"
+	"github.com/atreya2011/health-management-api/internal/config"
+	"github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	"github.com/atreya2011/health-management-api/internal/testutil"
 )
 
 var (
@@ -39,7 +39,7 @@ func init() {
 
 func runSeed() {
 	// Initialize logger
-	logger := applog.NewLogger()
+	logger := log.NewLogger()
 	if verboseMode {
 		logger.Info("Verbose mode enabled")
 	}
@@ -53,7 +53,7 @@ func runSeed() {
 	}
 
 	// Initialize database connection
-	dbPool, err := postgres.NewDBPool(&cfg.Database)
+	dbPool, err := repo.NewDBPool(&cfg.Database)
 	if err != nil {
 		logger.Error("Failed to connect to database", "error", err)
 		return
@@ -62,41 +62,53 @@ func runSeed() {
 	logger.Info("Database connection pool established")
 
 	// Initialize repositories
-	userRepo := postgres.NewPgUserRepository(dbPool)
-	bodyRecordRepo := postgres.NewPgBodyRecordRepository(dbPool)
+	userRepo := repo.NewUserRepository(dbPool)
+	bodyRecordRepo := repo.NewBodyRecordRepository(dbPool)
 	// Initialize other repositories as needed
 
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Create a test user if it doesn't exist
-	testUser, err := userRepo.FindBySubjectID(ctx, "test-subject-id")
+	// Create or get a test user
+	testUser, err := userRepo.Create(ctx, "test-subject-id")
 	if err != nil {
-		if errors.Is(err, domain.ErrUserNotFound) {
-			// Create a new test user
-			newUser := &domain.User{
-				SubjectID: "test-subject-id",
-			}
-			if err := userRepo.Create(ctx, newUser); err != nil {
-				logger.Error("Failed to create test user", "error", err)
-				return
-			}
-			logger.Info("Created test user", "subjectID", "test-subject-id")
-
-			// Get the created user
-			testUser, err = userRepo.FindBySubjectID(ctx, "test-subject-id")
-			if err != nil {
-				logger.Error("Failed to retrieve newly created test user", "error", err)
-				return
-			}
-		} else {
-			logger.Error("Failed to check for test user", "error", err)
+		// Check if it's the specific "not found" error which Create now handles internally by fetching
+		// If it's any other error during creation or fetching, log and return
+		if !errors.Is(err, repo.ErrUserNotFound) {
+			logger.Error("Failed to create or retrieve test user", "error", err)
 			return
 		}
+		// If ErrUserNotFound somehow bubbles up despite the logic in Create, log it.
+		// This case shouldn't happen based on the current Create implementation.
+		logger.Error("Unexpected ErrUserNotFound after Create call", "error", err)
+		return
+	}
+	// If Create returns successfully, testUser contains either the newly created or existing user
+	logger.Info("Ensured test user exists", "subjectID", "test-subject-id", "userID", testUser.ID)
+
+	// Note: The original code fetched the user again after creation.
+	// The modified Create method now returns the user directly (either new or existing),
+	// so the second fetch is no longer necessary.
+
+	// Check if context timed out after user creation/retrieval
+	if ctx.Err() != nil {
+		logger.Error("Context deadline exceeded after user creation/retrieval", "error", ctx.Err())
+		return
 	}
 
-	logger.Info("Using test user for mock data", "userID", testUser.ID)
+	// Original error handling for FindBySubjectID (kept for reference, but Create handles this now)
+	// testUser, err := userRepo.FindBySubjectID(ctx, "test-subject-id")
+	// if err != nil {
+	// 	if errors.Is(err, repo.ErrUserNotFound) { // Use postgres error
+	// 		// Create logic was here...
+	// 	} else {
+	// 		logger.Error("Failed to check for test user", "error", err)
+	// 		return
+	// 	}
+	// }
+
+	// logger.Info("Using test user for mock data", "userID", testUser.ID) // Removed duplicate log and extra braces
 
 	// Create mock body records for the specified number of days
 	now := time.Now().UTC().Truncate(24 * time.Hour)
@@ -108,17 +120,12 @@ func runSeed() {
 		weight := 70.0 + float64(i%5)
 		bodyFat := 15.0 + float64(i%3)
 
-		record := &domain.BodyRecord{
-			UserID:            testUser.ID,
-			Date:              date,
-			WeightKg:          &weight,
-			BodyFatPercentage: &bodyFat,
-		}
-
-		_, err := bodyRecordRepo.Save(ctx, record)
+		// Call Save with individual arguments, passing current time
+		currentTime := time.Now() // Get current time for this record
+		_, err := bodyRecordRepo.Save(ctx, testUser.ID, date, &weight, &bodyFat, currentTime) // Pass currentTime
 		if err != nil {
 			logger.Warn("Failed to create mock body record", "date", date, "error", err)
-			continue
+			continue // Continue to next day even if one fails
 		}
 
 		if verboseMode {
@@ -129,7 +136,8 @@ func runSeed() {
 	// Seed mock columns if requested
 	if mock {
 		logger.Info("Seeding mock columns using testutil...")
-		err := testutil.SeedMockColumns(ctx, dbPool)
+		realClock := clock.NewRealClock()
+		err := testutil.SeedMockColumns(ctx, dbPool, realClock)
 		if err != nil {
 			logger.Error("Failed to seed mock columns", "error", err)
 			// Decide if we should return or just log the error

@@ -5,17 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/atreya2011/health-management-api/internal/domain"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
-	db "github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres/db"
+	db "github.com/atreya2011/health-management-api/internal/repo/gen" // Import proto types
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // CreateTestExerciseRecord creates a test exercise record in the database using sqlc
-// Takes Queries directly.
-func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time) (*domain.ExerciseRecord, error) {
+// Takes Queries directly and returns the generated db.ExerciseRecord.
+// Accepts the current time for timestamps.
+func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID uuid.UUID, exerciseName string, durationMinutes *int32, caloriesBurned *int32, recordedAt time.Time, now time.Time) (db.ExerciseRecord, error) {
 	var durationMinutesVal, caloriesBurnedVal pgtype.Int4 // Use pgtype.Int4 for INTEGER
 
 	if durationMinutes != nil {
@@ -35,39 +33,15 @@ func CreateTestExerciseRecord(ctx context.Context, queries *db.Queries, userID u
 		DurationMinutes: durationMinutesVal,
 		CaloriesBurned:  caloriesBurnedVal,
 		RecordedAt:      recordedAtUTC, // Pass time.Time directly (ensure it's UTC)
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	dbRecord, err := queries.CreateExerciseRecord(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("could not create test exercise record: %w", err)
+		return db.ExerciseRecord{}, fmt.Errorf("could not create test exercise record: %w", err) // Return zero value on error
 	}
 
-	var durationMinutesPtr *int32
-	var caloriesBurnedPtr *int32
-
-	if dbRecord.DurationMinutes.Valid {
-		durationMinutesPtr = &dbRecord.DurationMinutes.Int32
-	}
-
-	if dbRecord.CaloriesBurned.Valid {
-		caloriesBurnedPtr = &dbRecord.CaloriesBurned.Int32
-	}
-
-	recordedAtVal := dbRecord.RecordedAt // No conversion needed
-
-	return &domain.ExerciseRecord{
-		ID:              dbRecord.ID,
-		UserID:          dbRecord.UserID,
-		ExerciseName:    dbRecord.ExerciseName,
-		DurationMinutes: durationMinutesPtr,
-		CaloriesBurned:  caloriesBurnedPtr,
-		RecordedAt:      recordedAtVal,    // Use the time.Time value
-		CreatedAt:       dbRecord.CreatedAt, // Already time.Time
-		UpdatedAt:       dbRecord.UpdatedAt, // Already time.Time
-	}, nil
-}
-
-// NewExerciseRecordRepository creates a new exercise record repository for testing
-func NewExerciseRecordRepository(pool *pgxpool.Pool) domain.ExerciseRecordRepository {
-	return postgres.NewPgExerciseRecordRepository(pool)
+	// Return the generated struct directly
+	return dbRecord, nil
 }

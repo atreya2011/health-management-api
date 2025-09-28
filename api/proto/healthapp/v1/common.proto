@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package healthapp.v1;
 
-option go_package = "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1;healthappv1";
+option go_package = "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1;healthappv1";
 
 // Standard pagination request
 message PageRequest {

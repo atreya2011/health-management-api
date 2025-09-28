@@ -4,7 +4,7 @@ package healthapp.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1;healthappv1";
+option go_package = "github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1;healthappv1";
 
 // User resource representation
 message User {

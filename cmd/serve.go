@@ -16,14 +16,13 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
-	// App imports
-	"github.com/atreya2011/health-management-api/internal/application"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/auth"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/config"
-	applog "github.com/atreya2011/health-management-api/internal/infrastructure/log"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/persistence/postgres"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/rpc/gen/healthapp/v1/healthappv1connect"
-	"github.com/atreya2011/health-management-api/internal/infrastructure/rpc/handlers"
+	"github.com/atreya2011/health-management-api/internal/auth"
+	"github.com/atreya2011/health-management-api/internal/clock"
+	"github.com/atreya2011/health-management-api/internal/config"
+	"github.com/atreya2011/health-management-api/internal/log"
+	"github.com/atreya2011/health-management-api/internal/repo"
+	"github.com/atreya2011/health-management-api/internal/rpc/gen/healthapp/v1/healthappv1connect"
+	"github.com/atreya2011/health-management-api/internal/rpc/handlers"
 )
 
 var (
@@ -49,7 +48,7 @@ func init() {
 
 func runServer() {
 	// Initialize logger
-	logger := applog.NewLogger()
+	logger := log.NewLogger()
 	if verboseMode {
 		// Set more verbose logging when verbose flag is enabled
 		logger.Info("Verbose mode enabled")
@@ -71,7 +70,7 @@ func runServer() {
 
 	// Initialize database connection
 	logger.Info("Connecting to database...", "url", cfg.Database.URL)
-	dbPool, err := postgres.NewDBPool(&cfg.Database)
+	dbPool, err := repo.NewDBPool(&cfg.Database)
 	if err != nil {
 		logger.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
@@ -97,17 +96,20 @@ func runServer() {
 	logger.Info("Database schema verified", "column_name", columnName)
 
 	// Initialize repositories
-	userRepo := postgres.NewPgUserRepository(dbPool)
-	bodyRecordRepo := postgres.NewPgBodyRecordRepository(dbPool)
-	diaryEntryRepo := postgres.NewPgDiaryEntryRepository(dbPool)
-	exerciseRecordRepo := postgres.NewPgExerciseRecordRepository(dbPool)
-	columnRepo := postgres.NewPgColumnRepository(dbPool)
+	userRepo := repo.NewUserRepository(dbPool)
+	bodyRecordRepo := repo.NewBodyRecordRepository(dbPool)
+	diaryEntryRepo := repo.NewDiaryEntryRepository(dbPool)
+	exerciseRecordRepo := repo.NewExerciseRecordRepository(dbPool)
+	columnRepo := repo.NewColumnRepository(dbPool)
 
 	// Initialize application services
-	bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger)
-	diaryService := application.NewDiaryService(diaryEntryRepo, logger)
-	exerciseRecordService := application.NewExerciseRecordService(exerciseRecordRepo, logger)
-	columnService := application.NewColumnService(columnRepo, logger)
+	// bodyRecordService := application.NewBodyRecordService(bodyRecordRepo, logger) // Removed
+	// diaryService := application.NewDiaryService(diaryEntryRepo, logger) // Removed
+	// exerciseRecordService := application.NewExerciseRecordService(exerciseRecordRepo, logger) // Removed
+	// columnService := application.NewColumnService(columnRepo, logger) // Removed
+
+	// Initialize clock
+	realClock := clock.NewRealClock()
 
 	// Initialize auth interceptor
 	jwtConfig := &auth.JWTConfig{
@@ -122,10 +124,10 @@ func runServer() {
 	)
 
 	// Initialize handlers
-	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordService, logger)
-	diaryHandler := handlers.NewDiaryHandler(diaryService, logger)
-	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordService, logger)
-	columnHandler := handlers.NewColumnHandler(columnService, logger)
+	bodyRecordHandler := handlers.NewBodyRecordHandler(bodyRecordRepo, logger, realClock)
+	diaryHandler := handlers.NewDiaryHandler(diaryEntryRepo, logger, realClock)
+	exerciseRecordHandler := handlers.NewExerciseRecordHandler(exerciseRecordRepo, logger, realClock)
+	columnHandler := handlers.NewColumnHandler(columnRepo, logger, realClock)
 
 	// Create router
 	mux := http.NewServeMux()
